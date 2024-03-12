@@ -1,0 +1,59 @@
+# Remko generated register definitions
+FIELD_REGNUM = 0
+FIELD_REGTYPE = 1
+FIELD_UNIT = 2
+FIELD_MINVALUE = 3
+FIELD_MAXVALUE = 4
+
+
+# Register as sensors
+reg_id = {
+    #  reg_id: ['reg#', 'type', 'unit', 'min', 'max'],
+    "dhw_opmode": ["1079", "select_input", "", 0, 16],
+    "water_temp_req": ["1082", "temperature_input", "ºC", 0, 60],
+    "main_mode": ["1951", "select_input", "", 0, 16],
+    "opmode": ["5001", "sensor_mode", "", "", ""],
+    "out_temp": ["5032", "temperature", "ºC", 0, 40],
+    "water_temp": ["5039", "temperature", "ºC", 0, 70],
+    "heat_water_temp": ["5190", "temperature", "ºC", 0, 90],
+    "el_consumption": ["5320", "sensor_el", "W", 0, 6000],
+    "communication_status": ["communication_status", "generated_sensor", "", 0, 0],
+}
+
+# Translation dictionary
+#  ['en', 'de']
+id_names = {
+    "water_temp_req": ["Water temp. req.", "Warmwasser soll"],
+    "out_temp": ["Outside temp.", "Außentemperatur"],
+    "water_temp": ["Water temp.", "Warmwasser Temp."],
+    "heat_water_temp": ["Heating water temp.", "Heizwasser Temp."],
+    "el_consumption": ["Electr. power", "Leistung elektrisch"],
+    "main_mode": ["Room climate mode", "Raumklima Modus"],
+    "opmode": ["Operaing mode", "Betriebsmodus"],
+    "dhw_opmode": ["DHW mode", "WW Modus"],
+    "mode0": ["", ""],
+    "mode1": ["Auto", "Auto"],
+    "mode2": ["Heating", "Heizen"],
+    "mode3": ["Standby", "Standy"],
+    "mode4": ["Cooling", "Kühlen"],
+    "dhwopmode0": ["Automatic comfort", "Automatik Komfort"],
+    "dhwopmode1": ["Automatic eco", "Automatik Eco"],
+    "dhwopmode2": ["Solar/PV only", "Nur Solar/PV"],
+    "dhwopmode3": ["Off", "Aus"],
+    "opmode1": ["Forced off", "Störung"],
+    "opmode2": ["Defosting", "Abtauen"],
+    "opmode3": ["Load defr. puffer", "Abtaupuffer"],
+    "opmode4": ["DHW loading", "WW Puffer"],
+    "opmode5": ["Storage energy", "Speicherenergie"],
+    "opmode6": ["Heating", "Heizen"],
+    "opmode7": ["Cooling", "Kühlen"],
+    "opmode8": ["Pool heating", "Pool"],
+    "opmode9": ["Idle", "Umwälzung"],
+    "opmode10": ["Standby", "Standby"],
+    "opmode11": ["Screed drying", "Estrichtrockung"],
+    "opmode12": ["Frost protection", "Frostschutz"],
+    "opmode13": ["Test mode", "Prüfbetrieb"],
+    "opmode14": ["Blocking signal", "Sperrsignal"],
+    "opmode15": ["Hygiene function", "Hygienefunktion"],
+    "opmode16": ["Silent mode", "Silent Modus"],
+}

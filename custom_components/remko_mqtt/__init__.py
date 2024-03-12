@@ -1,4 +1,4 @@
-"""Component for ThermIQ-MQTT support."""
+"""Component for Remko-MQTT support."""
 import logging
 from builtins import property
 
@@ -27,15 +27,15 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [
     "sensor",
-    "binary_sensor",
 ]
+
 
 async def async_setup(hass, config):
     """Set up HASL integration"""
-    _LOGGER.info("Set up ThermIQ-MQTT integration")
+    _LOGGER.info("Set up Remko-MQTT integration")
 
     if DOMAIN not in hass.data:
-        worker = hass.data.setdefault(DOMAIN, ThermIQWorker(hass))
+        worker = hass.data.setdefault(DOMAIN, RemkoWorker(hass))
     return True
 
 
@@ -46,13 +46,13 @@ async def async_migrate_entry(hass, config_entry: ConfigEntry):
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up component from a config entry, config_entry contains data from config entry database."""
-    _LOGGER.info("Set up ThermIQ-MQTT integration entry " + entry.data[CONF_ID])
+    _LOGGER.info("Set up Remko-MQTT integration entry " + entry.data[CONF_ID])
 
-    # One common ThermIQWorker serves all HeatPump objects
+    # One common RemkoWorker serves all HeatPump objects
     if DOMAIN in hass.data:
         worker = hass.data[DOMAIN]
     else:
-        worker = hass.data.setdefault(DOMAIN, ThermIQWorker(hass))
+        worker = hass.data.setdefault(DOMAIN, RemkoWorker(hass))
 
     # add new heatpump to worker
     heatpump = await worker.add_entry(entry)
@@ -97,7 +97,7 @@ async def reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         await worker.update_heatpump_entry(entry)
 
 
-class ThermIQWorker:
+class RemkoWorker:
     """worker object. Stored in hass.data."""
 
     def __init__(self, hass: HomeAssistant):

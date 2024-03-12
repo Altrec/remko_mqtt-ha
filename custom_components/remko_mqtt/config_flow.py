@@ -11,7 +11,6 @@ from .const import (
     DOMAIN,
     CONF_ID,
     CONF_MQTT_NODE,
-    CONF_MQTT_HEX,
     CONF_MQTT_DBG,
     CONF_LANGUAGE,
     AVAILABLE_LANGUAGES,
@@ -44,18 +43,16 @@ class DomainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return data
 
     async def async_step_user(self, user_input=None):
-
         data_schema = vol.Schema(
             {
-                vol.Required(CONF_ID, default="vp1"): cv.string,
-                vol.Required(CONF_MQTT_NODE, default="ThermIQ/ThermIQ-mqtt"): cv.string,
+                vol.Required(CONF_ID, default="remko"): cv.string,
+                vol.Required(CONF_MQTT_NODE, default="V04P28/SMTID"): cv.string,
                 vol.Required(CONF_LANGUAGE, default="en"): selector.SelectSelector(
                     selector.SelectSelectorConfig(
-                        options=["en", "se", "fi", "no", "de"],
+                        options=["en", "de"],
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     ),
                 ),
-                vol.Required(CONF_MQTT_HEX, default=False): cv.boolean,
                 vol.Required(CONF_MQTT_DBG, default=False): cv.boolean,
             }
         )
@@ -63,7 +60,6 @@ class DomainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is None:
             return self.async_show_form(step_id="user", data_schema=data_schema)
         else:
-
             error_schema = vol.Schema(
                 {
                     vol.Required(CONF_ID, default=user_input[CONF_ID]): cv.string,
@@ -74,13 +70,10 @@ class DomainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_LANGUAGE, default=user_input[CONF_LANGUAGE]
                     ): selector.SelectSelector(
                         selector.SelectSelectorConfig(
-                            options=["en", "se", "fi", "no", "de"],
+                            options=["en", "de"],
                             mode=selector.SelectSelectorMode.DROPDOWN,
                         ),
                     ),
-                    vol.Required(
-                        CONF_MQTT_HEX, default=user_input[CONF_MQTT_HEX]
-                    ): cv.boolean,
                     vol.Required(
                         CONF_MQTT_DBG, default=user_input[CONF_MQTT_DBG]
                     ): cv.boolean,
@@ -124,14 +117,12 @@ class DomainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
 
             try:
-
                 return self.async_create_entry(
                     title=unique_id,
                     data={
                         CONF_ID: id_name,
                         CONF_MQTT_NODE: prefix,
                         CONF_LANGUAGE: user_input[CONF_LANGUAGE],
-                        CONF_MQTT_HEX: user_input[CONF_MQTT_HEX],
                         CONF_MQTT_DBG: user_input[CONF_MQTT_DBG],
                     },
                     options={},
@@ -178,13 +169,10 @@ class OptionsFlow(config_entries.OptionsFlow):
                     default=self.config_entry.data.get(CONF_LANGUAGE),
                 ): selector.SelectSelector(
                     selector.SelectSelectorConfig(
-                        options=["en", "se", "fi", "no", "de"],
+                        options=["en", "de"],
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     ),
                 ),
-                vol.Required(
-                    CONF_MQTT_HEX, default=self.config_entry.data.get(CONF_MQTT_HEX)
-                ): cv.boolean,
                 vol.Required(
                     CONF_MQTT_DBG, default=self.config_entry.data.get(CONF_MQTT_DBG)
                 ): cv.boolean,
@@ -203,13 +191,10 @@ class OptionsFlow(config_entries.OptionsFlow):
                         CONF_LANGUAGE, default=user_input[CONF_LANGUAGE]
                     ): selector.SelectSelector(
                         selector.SelectSelectorConfig(
-                            options=["en", "se", "fi", "no", "de"],
+                            options=["en", "de"],
                             mode=selector.SelectSelectorMode.DROPDOWN,
                         ),
                     ),
-                    vol.Required(
-                        CONF_MQTT_HEX, default=user_input[CONF_MQTT_HEX]
-                    ): cv.boolean,
                     vol.Required(
                         CONF_MQTT_DBG, default=user_input[CONF_MQTT_DBG]
                     ): cv.boolean,
@@ -256,7 +241,6 @@ class OptionsFlow(config_entries.OptionsFlow):
                     CONF_ID: id_name,
                     CONF_MQTT_NODE: prefix,
                     CONF_LANGUAGE: user_input[CONF_LANGUAGE],
-                    CONF_MQTT_HEX: user_input[CONF_MQTT_HEX],
                     CONF_MQTT_DBG: user_input[CONF_MQTT_DBG],
                 }
 

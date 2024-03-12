@@ -1,5 +1,5 @@
 import logging
-from homeassistant.core import HomeAssistant, callback 
+from homeassistant.core import HomeAssistant, callback
 
 
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
@@ -13,10 +13,7 @@ from homeassistant.helpers.device_registry import DeviceEntryType
 from datetime import datetime
 from homeassistant.helpers.entity import Entity, async_generate_entity_id
 
-from homeassistant.const import (
-    UnitOfTemperature,
-    PERCENTAGE
-)
+from homeassistant.const import UnitOfTemperature, PERCENTAGE
 
 from homeassistant.components.sensor import SensorDeviceClass
 
@@ -26,8 +23,7 @@ from .const import (
     CONF_ID,
 )
 
-from .heatpump.thermiq_regs import (
-    FIELD_BITMASK,
+from .heatpump.remko_regs import (
     FIELD_MAXVALUE,
     FIELD_MINVALUE,
     FIELD_REGNUM,
@@ -51,7 +47,7 @@ async def async_setup_entry(
 
     @callback
     def async_add_sensor(sensor):
-        """Add a ThermIQ sensor property"""
+        """Add a Remko sensor property"""
         async_add_entities([sensor], True)
         # _LOGGER.debug('Added new sensor %s / %s', sensor.entity_id, sensor.unique_id)
 
@@ -63,14 +59,10 @@ async def async_setup_entry(
         if reg_id[key][1] in [
             "temperature",
             "temperature_input",
-            "time_input",
-            "sensor",
+            "sensor" "sensor_el",
             "sensor_input",
-            "generated_input",
-            "time",
+            "sensor_mode",
             "select_input",
-            "sensor_language",
-            "sensor_boolean",
             "generated_sensor",
         ]:
             device_id = key
@@ -119,19 +111,20 @@ class HeatPumpSensor(SensorEntity):
         self._name = friendly_name
         self._state = None
         self._icon = None
-        if (vp_type in ["temperature", "temperature_input",]) or (
+        if (
+            vp_type
+            in [
+                "temperature",
+                "temperature_input",
+            ]
+        ) or (
             vp_unit
             in [
                 "C",
             ]
         ):
             self._icon = "mdi:temperature-celsius"
-            self._unit =UnitOfTemperature.CELSIUS
-        elif vp_type in [
-            "sensor_boolean",
-        ]:
-            self._unit = ""
-            self._icon = "mdi:alert"
+            self._unit = UnitOfTemperature.CELSIUS
         else:
             self._unit = vp_unit
             self._icon = "mdi:gauge"
@@ -141,21 +134,17 @@ class HeatPumpSensor(SensorEntity):
 
         self._idx = device_id
         self._vp_reg = vp_reg
-        
-        # self.device_class [temperature, voltage,
-        #self.state_class= measurement
 
-        # Listen for the ThermIQ rec event indicating new data
+        # Listen for the Remko rec event indicating new data
         hass.bus.async_listen(
             heatpump._domain + "_" + heatpump._id + "_msg_rec_event",
             self._async_update_event,
         )
 
-        # Is this needed
         self._attr_device_info = {
-            ATTR_IDENTIFIERS: {(heatpump._id, "ThermIQ-MQTT")},
+            ATTR_IDENTIFIERS: {(heatpump._id, "Remko-MQTT")},
             ATTR_NAME: friendly_name,
-            ATTR_MANUFACTURER: "ThermIQ",
+            ATTR_MANUFACTURER: "Remko",
             ATTR_MODEL: "v1.0",
             "entry_type": DeviceEntryType.SERVICE,
         }

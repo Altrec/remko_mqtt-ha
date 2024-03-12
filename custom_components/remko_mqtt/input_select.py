@@ -17,8 +17,7 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import EntityPlatform
 
 from .heatpump import HeatPump
-from .heatpump.thermiq_regs import (
-    FIELD_BITMASK,
+from .heatpump.remko_regs import (
     FIELD_MAXVALUE,
     FIELD_MINVALUE,
     FIELD_REGNUM,
@@ -51,18 +50,16 @@ class CustomInputSelect(InputSelect):
         _LOGGER.debug("inp %s", self.entity_id)
         # We require that we have values from the hp before allowing updates from GUI
         await super().async_select_option(option)
-        # is value updated by GUI?
-        if self.heatpump._hpstate["mqtt_counter"] > 0:
-        	# Using first char in description as value to write is a kludge
-            value = int(option[0])
-            if value != self.heatpump._hpstate[self.reg]:
-                self.heatpump._hpstate[self.reg] = value
-                self.heatpump._hass.bus.fire(
-                    # This will reload all sensor entities in this heatpump
-                    f"{self.heatpump._domain}_{self.heatpump._id}_msg_rec_event",
-                    {},
-                )
-                await self.heatpump.send_mqtt_reg(self.reg_id, value, 0xFFFF)
+        # Using first char in description as value to write is a kludge
+        value = int(option[0])
+        if value != int(self.heatpump._hpstate[self.reg], 16):
+            self.heatpump._hpstate[self.reg] = value
+            self.heatpump._hass.bus.fire(
+                # This will reload all sensor entities in this heatpump
+                f"{self.heatpump._domain}_{self.heatpump._id}_msg_rec_event",
+                {},
+            )
+            await self.heatpump.send_mqtt_reg(self.reg_id, value)
 
 
 async def setup_input_select(heatpump) -> None:
@@ -100,17 +97,21 @@ def create_input_select_entity(heatpump, name) -> CustomInputSelect:
     else:
         friendly_name = None
     icon = None
+    conf_op = []
+
+    if name == "main_mode":
+        for i in range(5):
+            mode = "mode" + str(i)
+            conf_op.append(str(i) + " - " + id_names[mode][heatpump._langid])
+    elif name == "dhw_opmode":
+        for i in range(4):
+            mode = "dhwopmode" + str(i)
+            conf_op.append(str(i) + " - " + id_names[mode][heatpump._langid])
 
     config = {
         CONF_ID: entity_id,
         CONF_NAME: friendly_name,
-        CONF_OPTIONS: [
-            "0 - " + id_names["mode0"][heatpump._langid],
-            "1 - " + id_names["mode1"][heatpump._langid],
-            "2 - " + id_names["mode2"][heatpump._langid],
-            "3 - " + id_names["mode3"][heatpump._langid],
-            "4 - " + id_names["mode4"][heatpump._langid],
-        ],
+        CONF_OPTIONS: conf_op,
         CONF_ICON: icon,
         CONF_INITIAL: None,
     }

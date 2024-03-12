@@ -1,25 +1,19 @@
 """Constants for the component."""
 
 # Component domain, used to store component data in hass data.
-DOMAIN = "thermiq_mqtt"
+DOMAIN = "remko_mqtt"
 
-# == ThermIQ Const
+# == Remko Const
 CONF_ID = "id_name"
-CONF_MQTT_NODE = "mqtt_node"
-CONF_MQTT_DBG = "thermiq_dbg"
-CONF_MQTT_HEX = "hexformat"
+CONF_MQTT_NODE = "V04P28/SMTID"
+CONF_MQTT_DBG = "remko_dbg"
 CONF_LANGUAGE = "language"
-DEFAULT_NODE = "ThermIQ/ThermIQ-mqtt"
 CONF_DATA = "data_msg"
-DEFAULT_DATA = "/data"
-CONF_CMD = "cmd_msg"
-DEFAULT_CMD = "/write"
 DEFAULT_DBG = False
-AVAILABLE_LANGUAGES = ["en", "se", "fi", "no", "de"]
+AVAILABLE_LANGUAGES = ["en", "de"]
 
 
 PLATFORM_AUTOMATION = "automation"
-PLATFORM_BINARY_SENSOR = "binary_sensor"
 PLATFORM_GROUP = "group"
 PLATFORM_INPUT_BOOLEAN = "input_boolean"
 PLATFORM_INPUT_NUMBER = "input_number"

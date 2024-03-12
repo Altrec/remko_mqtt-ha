@@ -22,8 +22,7 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import EntityPlatform
 
 from .heatpump import HeatPump
-from .heatpump.thermiq_regs import (
-    FIELD_BITMASK,
+from .heatpump.remko_regs import (
     FIELD_MAXVALUE,
     FIELD_MINVALUE,
     FIELD_REGNUM,
@@ -59,16 +58,14 @@ class CustomInputNumber(InputNumber):
         _LOGGER.debug("inp %s", self.entity_id)
         # We require that we have values from the hp before allowing updates from GUI
         await super().async_set_value(value)
-        # is value updated by GUI?
-        if self.heatpump._hpstate["mqtt_counter"] > 0:
-            if value != self.heatpump._hpstate[self.reg]:
-                self.heatpump._hpstate[self.reg] = value
-                self.heatpump._hass.bus.fire(
-                    # This will reload all sensor entities in this heatpump
-                    f"{self.heatpump._domain}_{self.heatpump._id}_msg_rec_event",
-                    {},
-                )
-                await self.heatpump.send_mqtt_reg(self.reg_id, value, 0xFFFF)
+        if value != self.heatpump._hpstate[self.reg]:
+            self.heatpump._hpstate[self.reg] = value
+            self.heatpump._hass.bus.fire(
+                # This will reload all sensor entities in this heatpump
+                f"{self.heatpump._domain}_{self.heatpump._id}_msg_rec_event",
+                {},
+            )
+            await self.heatpump.send_mqtt_reg(self.reg_id, value)
 
 
 async def setup_input_numbers(heatpump) -> None:
@@ -87,9 +84,7 @@ async def update_input_numbers(heatpump) -> None:
     for key in reg_id:
         if reg_id[key][1] in [
             "temperature_input",
-            "time_input",
             "sensor_input",
-            "generated_input",
         ]:
             inp = create_input_number_entity(heatpump, key)
             to_add.append(inp)
@@ -109,11 +104,16 @@ def create_input_number_entity(heatpump, name) -> CustomInputNumber:
     else:
         friendly_name = None
     input_step = 1
-    if reg_id[name][0] == "indr_t":
-        input_step = 0.1
+    if name == "water_temp_req":
+        input_step = 0.5
     icon = None
     unit = None
-    if (reg_id[name][1] in ["temperature_input",]) or (
+    if (
+        reg_id[name][1]
+        in [
+            "temperature_input",
+        ]
+    ) or (
         reg_id[name][2]
         in [
             "C",
@@ -142,7 +142,5 @@ def create_input_number_entity(heatpump, name) -> CustomInputNumber:
     entity.reg = reg_id[name][0]
     entity.reg_id = name
     entity.heatpump = heatpump
-    # Bitmask is all bits
-    entity.bitmask = 0xFFFF
 
     return entity
