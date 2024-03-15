@@ -59,7 +59,8 @@ async def async_setup_entry(
         if reg_id[key][1] in [
             "temperature",
             "temperature_input",
-            "sensor" "sensor_el",
+            "sensor",
+            "sensor_el",
             "sensor_input",
             "sensor_mode",
             "select_input",
