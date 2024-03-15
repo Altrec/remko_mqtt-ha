@@ -1,5 +1,5 @@
 {
-    "title": "ThermIQ Config",
+    "title": "Remko Config",
     "config": {
       "abort": {
         "already_configured": "The entered id name is already in use."
@@ -16,8 +16,7 @@
             "id_name": "Unique ID",
             "nodename": "MQTT Nodename",
             "language": "Language",
-            "hexformat": "Use hexformat for registers i MQTT",
-            "thermiq_dbg": "Enable debug"
+            "remko_dbg": "Enable debug"
           },
           "title": "Heatpump config"
         }
@@ -32,8 +31,7 @@
           "data": {
             "nodename": "MQTT Nodename",
             "language": "Language",
-            "hexformat": "Use hexformat for registers i MQTT",
-            "thermiq_dbg": "Enable debug"
+            "remko_dbg": "Enable debug"
           },
           "title": "Options"
         }

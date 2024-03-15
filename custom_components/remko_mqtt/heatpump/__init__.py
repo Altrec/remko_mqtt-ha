@@ -53,6 +53,7 @@ class HeatPump:
     _mqtt_base = ""
     _langid = 0
     unsubscribe_callback: Callable[[], None]
+    mqtt_counter = 0
 
     # ###
     @callback
@@ -132,6 +133,12 @@ class HeatPump:
                     self._domain + "_" + self._id + "_msg_rec_event", {}
                 )
 
+                if self.mqtt_counter == 100:
+                    await self.mqtt_keep_alive()
+                    self.mqtt_counter = 0
+
+                self.mqtt_counter += 1
+
             else:
                 _LOGGER.error("JSON result was not from Remko-mqtt")
         except ValueError:
@@ -179,6 +186,8 @@ class HeatPump:
             _LOGGER.error("INFO: MQTT Debug write enabled")
 
         _LOGGER.debug("Language[%s]", self._langid)
+
+        await self.mqtt_keep_alive()
 
     async def async_reset(self):
         """Reset this heatpump to default state."""
@@ -229,6 +238,21 @@ class HeatPump:
             topic = self._cmd_topic
             value = str(value).zfill(2)
             payload = json.dumps({"values": {register: value}})
+
+        _LOGGER.debug("topic:[%s]", topic)
+        _LOGGER.debug("payload:[%s]", payload)
+        self._hass.async_create_task(
+            self._hass.components.mqtt.async_publish(
+                self._hass, topic, payload, qos=2, retain=False
+            )
+        )
+
+    async def mqtt_keep_alive(self) -> None:
+        """Heatpump sends MQTT messages only when triggered."""
+
+        topic = self._cmd_topic
+        value = "true"
+        payload = json.dumps({"FORCE_RESPONSE": value})
 
         _LOGGER.debug("topic:[%s]", topic)
         _LOGGER.debug("payload:[%s]", payload)

@@ -16,11 +16,10 @@
           "id_name": "Unique ID",
           "mqtt_node": "MQTT Nodename",
           "language": "Language",
-          "hexformat": "Use hexformat for registers i MQTT",
-          "thermiq_dbg": "Enable debug"
+          "remko_dbg": "Enable debug"
         },
         "title": "Heatpump config",
-        "description": "Set up a new ThermIQ_MQTT Instance"
+        "description": "Set up a new Remko_MQTT Instance"
        }
     },
     "progress": {
@@ -36,8 +35,7 @@
         "data": {
           "mqtt_node": "MQTT Nodename",
           "language": "Language",
-          "hexformat": "Use hexformat for registers i MQTT",
-          "thermiq_dbg": "Enable debug"
+          "remko_dbg": "Enable debug"
         },
         "title": "Options"
       }

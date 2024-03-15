@@ -34,7 +34,7 @@ id_names = {
     "mode0": ["", ""],
     "mode1": ["Auto", "Auto"],
     "mode2": ["Heating", "Heizen"],
-    "mode3": ["Standby", "Standy"],
+    "mode3": ["Standby", "Standby"],
     "mode4": ["Cooling", "Kühlen"],
     "dhwopmode0": ["Automatic comfort", "Automatik Komfort"],
     "dhwopmode1": ["Automatic eco", "Automatik Eco"],
