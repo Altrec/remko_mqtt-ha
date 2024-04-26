@@ -1,0 +1,11 @@
+{
+  "domain": "remko_mqtt",
+  "name": "Remko MQTT Integration",
+  "codeowners": ["@Altrec"],
+  "config_flow": true,
+  "dependencies": ["mqtt"],
+  "documentation": "https://github.com/Altrec/remko_mqtt-ha",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/Altrec/remko_mqtt-ha/issues",
+  "version": "0.2.1"
+}

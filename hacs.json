@@ -1,0 +1,6 @@
+{
+    "name": "Remko MQTT",
+    "hacs": "0.24.0",
+    "homeassistant": "2022.01",
+    "render_readme": true
+}
