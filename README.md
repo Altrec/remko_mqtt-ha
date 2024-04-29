@@ -25,7 +25,7 @@ The data available is listed in [REGISTERS.md](https://github.com/Altrec/remko_m
 
 # Contributing
 Contributions are welcome! If you'd like to contribute, feel free to pick up anything on the current [GitHub issues](https://github.com/Altrec/remko_mqtt-ha/issues) list!
-The naming, translation and grouping of registers can be improved, your input is appreciated. Most of it is in the [remko_regs.py](https://github.com/Altrec/remko_mqtt-ha/blob/master/custom_components/remko_mqtt/heatpump/remko_regs.py)  
+The naming, translation and grouping of registers can be improved, your input is appreciated. Most of it is in the [remko_regs.py](https://github.com/Altrec/remko_mqtt-ha/blob/master/custom_components/remko_mqtt/remko_regs.py)  
 
 All help improving the integration is appreciated!
 
