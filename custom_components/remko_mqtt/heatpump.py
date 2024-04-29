@@ -29,7 +29,7 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 
 
-from ..const import (
+from .const import (
     DOMAIN,
     CONF_ID,
     CONF_MQTT_NODE,
@@ -89,27 +89,7 @@ class HeatPump:
                             if reg_id[self._id_reg[k]][1] == "sensor_mode":
                                 mode = f"opmode{int(json_dict[k], 16)}"
                                 self._hpstate[k] = id_names[mode][self._langid]
-                            if reg_id[self._id_reg[k]][1] in [
-                                "temperature_input",
-                                "sensor_input",
-                                "generated_input",
-                            ]:
-                                context = {
-                                    INP_ATTR_VALUE: self._hpstate[k],
-                                    ATTR_ENTITY_ID: "input_number."
-                                    + self._domain
-                                    + "_"
-                                    + self._id_reg[k],
-                                }
-                                self._hass.async_create_task(
-                                    self._hass.services.async_call(
-                                        NUMBER_DOMAIN,
-                                        NUMBER_SERVICE_SET_VALUE,
-                                        context,
-                                        blocking=False,
-                                    )
-                                )
-                            if reg_id[self._id_reg[k]][1] == "select_input":
+                            if reg_id[self._id_reg[k]][1] == "select_input_":
                                 if self._id_reg[k] == "main_mode":
                                     mode = f"mode{int(json_dict[k], 16)}"
                                 elif self._id_reg[k] == "dhw_opmode":
@@ -180,7 +160,7 @@ class HeatPump:
         lang = entry.data[CONF_LANGUAGE]
         self._langid = AVAILABLE_LANGUAGES.index(lang)
         self._dbg = entry.data[CONF_MQTT_DBG]
-        self._mqtt_base = entry.data[CONF_MQTT_NODE] + "/"
+        self._mqtt_base = entry.data[CONF_MQTT_NODE] + "/SMTID/"
         self._data_topic = self._mqtt_base + "HOST2CLIENT"
         self._cmd_topic = self._mqtt_base + "CLIENT2HOST"
         self._freq = entry.data[CONF_FREQ]

@@ -1,4 +1,5 @@
 """Component for Remko-MQTT support."""
+
 import logging
 from builtins import property
 
@@ -12,12 +13,6 @@ from .const import (
     CONF_ID,
 )
 
-# from .automation import setup_automations
-from .input_number import setup_input_numbers
-from .input_select import setup_input_select
-from .input_button import setup_input_button
-
-
 from .heatpump import (
     HeatPump,
 )
@@ -27,7 +22,9 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [
     "sensor",
-    "binary_sensor",
+    "switch",
+    "number",
+    "select",
 ]
 
 
@@ -62,10 +59,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(rld)
 
     async def handle_hass_started(_event: Event) -> None:
-        """Event handler for when HA has started."""
-        await hass.async_create_task(setup_input_numbers(heatpump))
-        await hass.async_create_task(setup_input_select(heatpump))
-        await hass.async_create_task(setup_input_button(heatpump))
         await hass.async_create_task(heatpump.setup_mqtt())
 
     # Load the platforms for heatpump

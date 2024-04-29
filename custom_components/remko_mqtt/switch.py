@@ -4,11 +4,7 @@ from homeassistant.core import HomeAssistant, callback
 
 from homeassistant.const import STATE_OFF, STATE_ON
 
-from homeassistant.components.binary_sensor import (
-    BinarySensorDeviceClass,
-    BinarySensorEntity,
-    BinarySensorEntityDescription,
-)
+from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import (
     ATTR_IDENTIFIERS,
     ATTR_MANUFACTURER,
@@ -27,13 +23,9 @@ from .const import (
     CONF_ID,
 )
 
-from .heatpump.remko_regs import (
-    FIELD_BITMASK,
-    FIELD_MAXVALUE,
-    FIELD_MINVALUE,
+from .remko_regs import (
     FIELD_REGNUM,
     FIELD_REGTYPE,
-    FIELD_UNIT,
     id_names,
     reg_id,
 )
@@ -65,42 +57,37 @@ async def async_setup_entry(
     entities = []
 
     for key in reg_id:
-        if reg_id[key][1] in [
-            "binary_sensor",
-            "switch",
-        ]:
+        if reg_id[key][FIELD_REGTYPE] == "switch":
             device_id = key
             if key in id_names:
                 friendly_name = id_names[key][heatpump._langid]
             else:
                 friendly_name = None
             vp_reg = reg_id[key][FIELD_REGNUM]
-            bitmask = reg_id[key][FIELD_BITMASK]
 
             entities.append(
-                HeatPumpBinarySensor(
+                HeatPumpSwitch(
                     hass,
                     heatpump,
                     device_id,
                     vp_reg,
                     friendly_name,
-                    bitmask,
                 )
             )
     async_add_entities(entities)
 
 
-class HeatPumpBinarySensor(BinarySensorEntity):
+class HeatPumpSwitch(SwitchEntity):
     """Common functionality for all entities."""
 
-    def __init__(self, hass, heatpump, device_id, vp_reg, friendly_name, bitmask):
+    def __init__(self, hass, heatpump, device_id, vp_reg, friendly_name):
         self.hass = hass
         self._heatpump = heatpump
         self._hpstate = heatpump._hpstate
 
         # set HA instance attributes directly (mostly don't use property)
         self._attr_unique_id = f"{heatpump._domain}_{device_id}"
-        self.entity_id = f"binary_sensor.{heatpump._domain}_{device_id}"
+        self.entity_id = f"switch.{heatpump._domain}_{device_id}"
 
         _LOGGER.debug("entity_id:" + self.entity_id)
         _LOGGER.debug("idx:" + device_id)
@@ -118,7 +105,6 @@ class HeatPumpBinarySensor(BinarySensorEntity):
 
         self._idx = device_id
         self._vp_reg = vp_reg
-        self._bitmask = bitmask
 
         # Listen for the Remko rec event indicating new data
         hass.bus.async_listen(
@@ -134,9 +120,17 @@ class HeatPumpBinarySensor(BinarySensorEntity):
             "entry_type": DeviceEntryType.SERVICE,
         }
 
+    async def async_turn_on(self):
+        value = int(1)
+        await self._heatpump.send_mqtt_reg(self._idx, value)
+
+    async def async_turn_off(self):
+        value = int(0)
+        await self._heatpump.send_mqtt_reg(self._idx, value)
+
     @property
     def name(self):
-        """Return the name of the sensor."""
+        """Return the name of the switch."""
         return self._name
 
     @property
@@ -200,4 +194,4 @@ class HeatPumpBinarySensor(BinarySensorEntity):
     @property
     def device_class(self):
         """Return the class of this device."""
-        return f"{DOMAIN}_HeatPumpSensor"
+        return f"{DOMAIN}_HeatPumpSwitch"

@@ -15,7 +15,7 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import EntityPlatform
 
 from .heatpump import HeatPump
-from .heatpump.remko_regs import (
+from .remko_regs import (
     FIELD_MAXVALUE,
     FIELD_MINVALUE,
     FIELD_REGNUM,
@@ -78,6 +78,19 @@ async def update_input_button(heatpump) -> None:
             entity_list.append(f"{PLATFORM}.{heatpump._domain}" + "_" + key)
 
     await platform.async_add_entities(to_add)
+
+
+async def remove_input_button(heatpump) -> None:
+    """Update built in input button."""
+
+    platform: EntityPlatform = heatpump._hass.data[CONF_ENTITY_PLATFORM][PLATFORM][0]
+    entities = []
+
+    for entity_id in platform.domain_entities:
+        entities.append(entity_id)
+
+    for k in entities:
+        await platform.async_remove_entity(k)
 
 
 def create_input_button_entity(heatpump, name) -> CustomInputButton:

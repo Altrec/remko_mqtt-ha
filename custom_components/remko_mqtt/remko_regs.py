@@ -4,18 +4,17 @@ FIELD_REGTYPE = 1
 FIELD_UNIT = 2
 FIELD_MINVALUE = 3
 FIELD_MAXVALUE = 4
-FIELD_BITMASK = 3
 
 # Query list
-query_list = [] #[1079, 1082, 1893, 1894, 1951, 5001, 5032, 5039, 5320, 5693]
+query_list = []  # [1079, 1082, 1893, 1894, 1951, 5001, 5032, 5039, 5320, 5693]
 
 
 # Register as sensors
 reg_id = {
-    #  reg_id: ['reg#', 'type', 'unit', 'min or bitmask', 'max'],
+    #  reg_id: ['reg#', 'type', 'unit', 'min', 'max'],
     "dhw_opmode": ["1079", "select_input", "", 0, 16],
-    "water_temp_req": ["1082", "temperature_input", "ºC", 0, 60],
-    "absence_mode": ["1893", "switch", "", 0x0001, ""],
+    "water_temp_req": ["1082", "temperature_input", "ºC", 20.0, 60.0],
+    "absence_mode": ["1893", "switch", "", "", ""],
     "party_mode": ["1894", "switch", "", "", ""],
     "main_mode": ["1951", "select_input", "", 0, 16],
     "opmode": ["5001", "sensor_mode", "", "", ""],

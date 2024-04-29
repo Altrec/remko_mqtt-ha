@@ -6,7 +6,7 @@
       },
       "error": {
         "invalid_nodename": "The entered nodename is not valid",
-        "creation_error": "An error occured while creating configuration object",
+        "creation_id": "The Unique ID is not Unique or not valid",
         "creation_error": "An error occured while updating configuration object",
         "invalid_language": "An error occured while creating configuration object"
       },

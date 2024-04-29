@@ -2,7 +2,7 @@ import logging
 from homeassistant.core import callback
 
 
-from homeassistant.components.sensor import SensorEntity, SensorStateClass
+from homeassistant.components.number import NumberEntity
 from homeassistant.const import (
     ATTR_IDENTIFIERS,
     ATTR_MANUFACTURER,
@@ -22,6 +22,8 @@ from .remko_regs import (
     FIELD_REGNUM,
     FIELD_REGTYPE,
     FIELD_UNIT,
+    FIELD_MINVALUE,
+    FIELD_MAXVALUE,
     id_names,
     reg_id,
 )
@@ -38,25 +40,12 @@ async def async_setup_entry(
     during initialization of a new integration.
     """
 
-    @callback
-    def async_add_sensor(sensor):
-        """Add a Remko sensor property"""
-        async_add_entities([sensor], True)
-        # _LOGGER.debug('Added new sensor %s / %s', sensor.entity_id, sensor.unique_id)
-
     worker = hass.data[DOMAIN].worker
     heatpump = hass.data[DOMAIN]._heatpumps[config_entry.data[CONF_ID]]
     entities = []
 
     for key in reg_id:
-        if reg_id[key][FIELD_REGTYPE] in [
-            "temperature",
-            "sensor",
-            "sensor_el",
-            "sensor_input",
-            "sensor_mode",
-            "select_input",
-        ]:
+        if reg_id[key][FIELD_REGTYPE] == "temperature_input":
             device_id = key
             if key in id_names:
                 friendly_name = id_names[key][heatpump._langid]
@@ -65,9 +54,13 @@ async def async_setup_entry(
             vp_reg = reg_id[key][FIELD_REGNUM]
             vp_type = reg_id[key][FIELD_REGTYPE]
             vp_unit = reg_id[key][FIELD_UNIT]
+            vp_min = reg_id[key][FIELD_MINVALUE]
+            vp_max = reg_id[key][FIELD_MAXVALUE]
+            vp_step = 0.5
+            vp_mode = "box"
 
             entities.append(
-                HeatPumpSensor(
+                HeatPumpNumber(
                     hass,
                     heatpump,
                     device_id,
@@ -75,32 +68,39 @@ async def async_setup_entry(
                     friendly_name,
                     vp_type,
                     vp_unit,
+                    vp_min,
+                    vp_max,
+                    vp_step,
+                    vp_mode,
                 )
             )
     async_add_entities(entities)
 
 
-class HeatPumpSensor(SensorEntity):
+class HeatPumpNumber(NumberEntity):
     """Common functionality for all entities."""
 
     def __init__(
-        self, hass, heatpump, device_id, vp_reg, friendly_name, vp_type, vp_unit
+        self,
+        hass,
+        heatpump,
+        device_id,
+        vp_reg,
+        friendly_name,
+        vp_type,
+        vp_unit,
+        vp_min,
+        vp_max,
+        vp_step,
+        vp_mode,
     ):
         self.hass = hass
         self._heatpump = heatpump
         self._hpstate = heatpump._hpstate
 
-        # self._attr_native_value = state
-        # self._attr_native_unit_of_measurement = unit_of_measurement
-        if vp_type not in [
-            "sensor_mode",
-            "generated_sensor",
-        ]:
-            self._attr_state_class = SensorStateClass.MEASUREMENT
-
         # set HA instance attributes directly (mostly don't use property)
         self._attr_unique_id = f"{heatpump._domain}_{device_id}"
-        self.entity_id = f"sensor.{heatpump._domain}_{device_id}"
+        self.entity_id = f"number.{heatpump._domain}_{device_id}"
 
         _LOGGER.debug("entity_id:" + self.entity_id)
         _LOGGER.debug("idx:" + device_id)
@@ -128,6 +128,10 @@ class HeatPumpSensor(SensorEntity):
                 self._unit = None
             self._icon = "mdi:gauge"
         # "mdi:thermometer" ,"mdi:oil-temperature", "mdi:gauge", "mdi:speedometer", "mdi:alert"
+        self._min = vp_min
+        self._max = vp_max
+        self._step = vp_step
+        self._mode = vp_mode
         self._entity_picture = None
         self._available = True
 
@@ -160,12 +164,12 @@ class HeatPumpSensor(SensorEntity):
 
     @property
     def state(self):
-        """Return the state of the sensor."""
+        """Return the state of the number."""
         return self._state
 
     @property
     def vp_reg(self):
-        """Return the device class of the sensor."""
+        """Return the device class of the number."""
         return self._vp_reg
 
     @property
@@ -174,9 +178,44 @@ class HeatPumpSensor(SensorEntity):
         return self._unit
 
     @property
+    def native_min_value(self):
+        """Return the min value."""
+        return self._min
+
+    @property
+    def native_max_value(self):
+        """Return the max value."""
+        return self._max
+
+    @property
+    def native_step(self):
+        """Return the step."""
+        return self._step
+
+    @property
+    def mode(self):
+        """Return the mode (box/slider)."""
+        return self._mode
+
+    @property
     def icon(self):
-        """Return the icon of the sensor."""
+        """Return the icon of the number."""
         return self._icon
+
+    @property
+    def device_class(self):
+        """Return the class of this device."""
+        return f"{DOMAIN}_HeatPumpNumber"
+
+    async def async_set_value(self, value: float) -> None:
+        if value != self._heatpump._hpstate[self._vp_reg]:
+            self._heatpump._hpstate[self._vp_reg] = value
+            await self._heatpump.send_mqtt_reg(self._idx, value)
+            await self._heatpump._hass.bus.fire(
+                # This will reload all sensor entities in this heatpump
+                f"{self._heatpump._domain}__msg_rec_event",
+                {},
+            )
 
     async def async_update(self):
         """Update the value of the entity."""
@@ -198,8 +237,3 @@ class HeatPumpSensor(SensorEntity):
             self._state = state
             self.async_schedule_update_ha_state()
             _LOGGER.debug("async_update_ha: %s", str(state))
-
-    @property
-    def device_class(self):
-        """Return the class of this device."""
-        return f"{DOMAIN}_HeatPumpSensor"

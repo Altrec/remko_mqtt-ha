@@ -1,4 +1,5 @@
 """Config flow"""
+
 import logging
 import voluptuous as vol
 from homeassistant import config_entries, exceptions
@@ -47,7 +48,7 @@ class DomainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         data_schema = vol.Schema(
             {
                 vol.Required(CONF_ID, default="remko"): cv.string,
-                vol.Required(CONF_MQTT_NODE, default="V04P28/SMTID"): cv.string,
+                vol.Required(CONF_MQTT_NODE, default="V04P28"): cv.string,
                 vol.Required(CONF_LANGUAGE, default="en"): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=["en", "de"],

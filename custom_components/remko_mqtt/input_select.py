@@ -1,4 +1,5 @@
 """Input numbers used for settings."""
+
 import logging
 from typing import List
 
@@ -17,7 +18,7 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import EntityPlatform
 
 from .heatpump import HeatPump
-from .heatpump.remko_regs import (
+from .remko_regs import (
     FIELD_MAXVALUE,
     FIELD_MINVALUE,
     FIELD_REGNUM,

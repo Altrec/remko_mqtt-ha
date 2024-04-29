@@ -5,7 +5,7 @@ DOMAIN = "remko_mqtt"
 
 # == Remko Const
 CONF_ID = "id_name"
-CONF_MQTT_NODE = "V04P28/SMTID"
+CONF_MQTT_NODE = "V04P28"
 CONF_MQTT_DBG = "remko_dbg"
 CONF_LANGUAGE = "language"
 CONF_DATA = "data_msg"
