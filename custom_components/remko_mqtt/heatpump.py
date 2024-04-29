@@ -89,28 +89,12 @@ class HeatPump:
                             if reg_id[self._id_reg[k]][1] == "sensor_mode":
                                 mode = f"opmode{int(json_dict[k], 16)}"
                                 self._hpstate[k] = id_names[mode][self._langid]
-                            if reg_id[self._id_reg[k]][1] == "select_input_":
+                            if reg_id[self._id_reg[k]][1] == "select_input":
                                 if self._id_reg[k] == "main_mode":
                                     mode = f"mode{int(json_dict[k], 16)}"
                                 elif self._id_reg[k] == "dhw_opmode":
                                     mode = f"dhwopmode{int(json_dict[k], 16)}"
-
-                                context = {
-                                    ATTR_OPTION: f"{int(json_dict[k], 16)} - "
-                                    + id_names[mode][self._langid],
-                                    ATTR_ENTITY_ID: "input_select."
-                                    + self._domain
-                                    + "_"
-                                    + self._id_reg[k],
-                                }
-                                self._hass.async_create_task(
-                                    self._hass.services.async_call(
-                                        SELECT_DOMAIN,
-                                        SELECT_SERVICE_SET_OPTION,
-                                        context,
-                                        blocking=False,
-                                    )
-                                )
+                                self._hpstate[k] = id_names[mode][self._langid]
 
                     self._hpstate["communication_status"] = json_dict.get(
                         "vp_read", "Ok"

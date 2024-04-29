@@ -38,7 +38,6 @@ id_names = {
     "absence_mode": ["Absence mode", "Abwesenheitssmodus"],
     "party_mode": ["Party mode", "Partymodus"],
     "dhw_heating": ["1x DHW heating", "1x WW aufheizen"],
-    "mode0": ["", ""],
     "mode1": ["Auto", "Auto"],
     "mode2": ["Heating", "Heizen"],
     "mode3": ["Standby", "Standby"],

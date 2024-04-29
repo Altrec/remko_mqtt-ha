@@ -54,13 +54,13 @@ async def async_setup_entry(
             vp_options = []
 
             if key == "main_mode":
-                for i in range(5):
+                for i in range(1, 5):
                     mode = "mode" + str(i)
-                    vp_options.append(str(i) + " - " + id_names[mode][heatpump._langid])
+                    vp_options.append(id_names[mode][heatpump._langid])
             elif key == "dhw_opmode":
                 for i in range(4):
                     mode = "dhwopmode" + str(i)
-                    vp_options.append(str(i) + " - " + id_names[mode][heatpump._langid])
+                    vp_options.append(id_names[mode][heatpump._langid])
 
             entities.append(
                 HeatPumpSelect(
@@ -161,9 +161,9 @@ class HeatPumpSelect(SelectEntity):
         return f"{DOMAIN}_HeatPumpSelect"
 
     async def async_select_option(self, option: str) -> None:
-        value = int(option[0])
-        if value != int(self._heatpump._hpstate[self._vp_reg], 16):
-            self._heatpump._hpstate[self._vp_reg] = value
+        value = self._options.index(option)
+        if value != self._options.index(self._heatpump._hpstate[self._vp_reg]):
+            self._heatpump._hpstate[self._vp_reg] = option
             self._heatpump._hass.bus.fire(
                 # This will reload all sensor entities in this heatpump
                 f"{self._heatpump._domain}__msg_rec_event",
@@ -175,10 +175,10 @@ class HeatPumpSelect(SelectEntity):
         """Update the new state of the select entity."""
 
         _LOGGER.debug("event: " + self._idx)
-        state = int(self._hpstate[self._vp_reg], 16)
+        state = self._hpstate[self._vp_reg]
         if state is None:
             _LOGGER.debug("Could not get data for %s", self._idx)
-        if self._state is None or int(self._state[0]) != state:
-            self._state = self._options[state]
+        if self._state is None or self._state != state:
+            self._state = state
             self.async_schedule_update_ha_state()
             _LOGGER.debug("async_update_ha: %s", str(state))
