@@ -1,42 +1,47 @@
 {
-    "title": "Remko Config",
-    "config": {
-      "abort": {
-        "already_configured": "The entered id name is already in use."
-      },
-      "error": {
-        "invalid_nodename": "The entered nodename is not valid",
-        "creation_id": "The Unique ID is not Unique or not valid",
-        "creation_error": "An error occured while updating configuration object",
-        "invalid_language": "An error occured while creating configuration object"
-      },
-      "step": {
-        "user": {
-          "data": {
-            "id_name": "Unique ID",
-            "nodename": "MQTT Nodename",
-            "language": "Language",
-            "freq": "Frequency",
-            "remko_dbg": "Enable debug"
-          },
-          "title": "Heatpump config"
-        }
-      }
+  "title": "Remko MQTT",
+  "config": {
+    "flow_title":"Flow title",
+    "abort": {
+      "already_configured": "Der eingegebene Name ist bereits in Verwendung."
     },
-    "options": {
-      "abort": {
-        "already_configured": "The entered id name is already in use."
-      },
-      "step": {
-        "user": {
-          "data": {
-            "nodename": "MQTT Nodename",
-            "language": "Language",
-            "freq": "Frequency",
-            "remko_dbg": "Enable debug"
-          },
-          "title": "Options"
-        }
+    "error": {
+      "invalid_nodename": "Der eingebene MQTT Nodename ist nicht gültig",
+      "creation_id": "Die ID ist nicht einzigartig oder gültig",
+      "creation_error": "Während der Erstellung der Konfiguration ist ein Fehler aufgetreten",
+      "invalid_language": "Ungültige Sprache"
+    },
+    "step": {
+      "user": {
+        "data": {
+          "id_name": "Unique ID",
+          "mqtt_node": "MQTT Nodename",
+          "language": "Sprache",
+          "freq": "Frequenz",
+          "remko_dbg": "Debug aktivieren"
+        },
+        "title": "Wärmepumpenkonfiguration",
+        "description": "Erstelle eine neue Remko_MQTT Instanz"
+       }
+    },
+    "progress": {
+      "slow_task": "This message will be displayed if `slow_task` is returned as `progress_action` for `async_show_progress`."
+    }
+  },
+  "options": {
+    "abort": {
+      "already_configured": "Der eingegebene Name ist bereits in Verwendung."
+    },
+    "step": {
+      "user": {
+        "data": {
+          "mqtt_node": "MQTT Nodename",
+          "language": "Sprache",
+          "freq": "Frequenz",
+          "remko_dbg": "Debug aktivieren"
+        },
+        "title": "Optionen"
       }
     }
   }
+}

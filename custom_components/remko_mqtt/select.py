@@ -16,6 +16,8 @@ from homeassistant.helpers.device_registry import DeviceEntryType
 from .const import (
     DOMAIN,
     CONF_ID,
+    CONF_NAME,
+    CONF_VER,
 )
 
 from .remko_regs import (
@@ -120,9 +122,9 @@ class HeatPumpSelect(SelectEntity):
 
         self._attr_device_info = {
             ATTR_IDENTIFIERS: {(heatpump._id, "Remko-MQTT")},
-            ATTR_NAME: friendly_name,
+            ATTR_NAME: CONF_NAME,
             ATTR_MANUFACTURER: "Remko",
-            ATTR_MODEL: "v1.0",
+            ATTR_MODEL: CONF_VER,
             "entry_type": DeviceEntryType.SERVICE,
         }
 

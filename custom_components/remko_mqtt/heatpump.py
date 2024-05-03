@@ -1,4 +1,4 @@
-import logging, json
+import logging, json, asyncio
 
 from collections.abc import Callable, Coroutine
 import attr
@@ -27,6 +27,7 @@ from homeassistant.const import (
     ATTR_OPTION,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.components import mqtt
 
 
 from .const import (
@@ -133,7 +134,19 @@ class HeatPump:
             self._hpstate[v[0]] = -1
 
     async def setup_mqtt(self):
-        self.unsubscribe_callback = await self._hass.components.mqtt.async_subscribe(
+        self.unsubscribe_callback = await mqtt.async_subscribe(
+            self._hass,
+            self._data_topic,
+            self.message_received,
+        )
+        # """ Wait before getting new values """
+        await asyncio.sleep(5)
+        self._mqtt_counter = self._freq
+        self._hass.bus.fire(self._domain + "_" + self._id + "_msg_rec_event", {})
+
+    async def remove_mqtt(self):
+        self.unsubscribe_callback = await mqtt.async_unload_entry(
+            self._hass,
             self._data_topic,
             self.message_received,
         )
@@ -199,8 +212,6 @@ class HeatPump:
             _LOGGER.error("No MQTT message sent due to unknown register:[%s]", register)
             return
 
-        self._mqtt_counter = self._freq
-
         if register_id == "water_temp_req":
             topic = self._cmd_topic
             hex_str = hex(int(value * 10)).upper()
@@ -211,6 +222,8 @@ class HeatPump:
             "main_mode",
         ]:
             topic = self._cmd_topic
+            if register_id == "main_mode":
+                value = value + 1
             value = str(value).zfill(2)
             payload = json.dumps({"values": {register: value}})
         elif register_id in [
@@ -225,10 +238,12 @@ class HeatPump:
         _LOGGER.debug("topic:[%s]", topic)
         _LOGGER.debug("payload:[%s]", payload)
         self._hass.async_create_task(
-            self._hass.components.mqtt.async_publish(
-                self._hass, topic, payload, qos=2, retain=False
-            )
+            mqtt.async_publish(self._hass, topic, payload, qos=2, retain=False)
         )
+        """ Wait before getting new values """
+        await asyncio.sleep(5)
+        self._mqtt_counter = self._freq
+        self._hass.bus.fire(self._domain + "_" + self._id + "_msg_rec_event", {})
 
     async def mqtt_keep_alive(self) -> None:
         """Heatpump sends MQTT messages only when triggered."""
@@ -243,7 +258,5 @@ class HeatPump:
         _LOGGER.debug("topic:[%s]", topic)
         _LOGGER.debug("payload:[%s]", payload)
         self._hass.async_create_task(
-            self._hass.components.mqtt.async_publish(
-                self._hass, topic, payload, qos=2, retain=False
-            )
+            mqtt.async_publish(self._hass, topic, payload, qos=2, retain=False)
         )

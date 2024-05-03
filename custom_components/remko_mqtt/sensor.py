@@ -16,6 +16,8 @@ from homeassistant.const import UnitOfTemperature
 from .const import (
     DOMAIN,
     CONF_ID,
+    CONF_NAME,
+    CONF_VER,
 )
 
 from .remko_regs import (
@@ -55,7 +57,6 @@ async def async_setup_entry(
             "sensor_el",
             "sensor_input",
             "sensor_mode",
-            "select_input",
         ]:
             device_id = key
             if key in id_names:
@@ -142,9 +143,9 @@ class HeatPumpSensor(SensorEntity):
 
         self._attr_device_info = {
             ATTR_IDENTIFIERS: {(heatpump._id, "Remko-MQTT")},
-            ATTR_NAME: friendly_name,
+            ATTR_NAME: CONF_NAME,
             ATTR_MANUFACTURER: "Remko",
-            ATTR_MODEL: "v1.0",
+            ATTR_MODEL: CONF_VER,
             "entry_type": DeviceEntryType.SERVICE,
         }
 

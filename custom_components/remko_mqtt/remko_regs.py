@@ -16,7 +16,7 @@ reg_id = {
     "water_temp_req": ["1082", "temperature_input", "ºC", 20.0, 60.0],
     "absence_mode": ["1893", "switch", "", "", ""],
     "party_mode": ["1894", "switch", "", "", ""],
-    "main_mode": ["1951", "select_input", "", 0, 16],
+    "main_mode": ["1951", "select_input", "", "", ""],
     "opmode": ["5001", "sensor_mode", "", "", ""],
     "out_temp": ["5032", "temperature", "ºC", 0, 40],
     "water_temp": ["5039", "temperature", "ºC", 0, 70],

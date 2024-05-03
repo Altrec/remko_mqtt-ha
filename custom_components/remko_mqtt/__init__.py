@@ -25,6 +25,7 @@ PLATFORMS = [
     "switch",
     "number",
     "select",
+    "button",
 ]
 
 
@@ -66,9 +67,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     )
 
-    # Wait for hass to start and then add the input_* entities
-    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, handle_hass_started)
-    # Make config reload
+    if hass.is_running:
+        await hass.async_create_task(heatpump.setup_mqtt())
+    else:
+        # Wait for hass to start and then add the input_* entities
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, handle_hass_started)
 
     return True
 

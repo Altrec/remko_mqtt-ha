@@ -2,22 +2,18 @@ import logging
 from typing import TYPE_CHECKING, Literal, final
 from homeassistant.core import HomeAssistant, callback
 
-from homeassistant.const import STATE_OFF, STATE_ON
 
-from homeassistant.components.switch import SwitchEntity
+from homeassistant.components.button import ButtonEntity
 from homeassistant.const import (
     ATTR_IDENTIFIERS,
     ATTR_MANUFACTURER,
     ATTR_MODEL,
     ATTR_NAME,
-    STATE_OFF,
-    STATE_ON,
     EntityCategory,
 )
 
 from homeassistant.helpers.device_registry import DeviceEntryType
 
-from homeassistant.const import PERCENTAGE
 from .const import (
     DOMAIN,
     CONF_ID,
@@ -50,7 +46,7 @@ async def async_setup_entry(
 
     @callback
     def async_add_sensor(sensor):
-        """Add a Remko sensor property"""
+        """Add a Remko button property"""
         async_add_entities([sensor], True)
         # _LOGGER.debug('Added new sensor %s / %s', sensor.entity_id, sensor.unique_id)
 
@@ -59,7 +55,7 @@ async def async_setup_entry(
     entities = []
 
     for key in reg_id:
-        if reg_id[key][FIELD_REGTYPE] == "switch":
+        if reg_id[key][FIELD_REGTYPE] == "action":
             device_id = key
             if key in id_names:
                 friendly_name = id_names[key][heatpump._langid]
@@ -68,7 +64,7 @@ async def async_setup_entry(
             vp_reg = reg_id[key][FIELD_REGNUM]
 
             entities.append(
-                HeatPumpSwitch(
+                HeatPumpButton(
                     hass,
                     heatpump,
                     device_id,
@@ -79,7 +75,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class HeatPumpSwitch(SwitchEntity):
+class HeatPumpButton(ButtonEntity):
     """Common functionality for all entities."""
 
     def __init__(self, hass, heatpump, device_id, vp_reg, friendly_name):
@@ -95,10 +91,8 @@ class HeatPumpSwitch(SwitchEntity):
         _LOGGER.debug("idx:" + device_id)
         self._name = friendly_name
         self._state = None
-        if device_id == "absence_mode":
-            self._icon = "mdi:plane-car"
-        elif device_id == "party_mode":
-            self._icon = "mdi:party-popper"
+        if device_id == "dhw_heating":
+            self._icon = "mdi:heat-wave"
         else:
             self._icon = "mdi:lightning-outline"
 
@@ -108,12 +102,6 @@ class HeatPumpSwitch(SwitchEntity):
         self._idx = device_id
         self._vp_reg = vp_reg
 
-        # Listen for the Remko rec event indicating new data
-        hass.bus.async_listen(
-            heatpump._domain + "_" + heatpump._id + "_msg_rec_event",
-            self._async_update_event,
-        )
-
         self._attr_device_info = {
             ATTR_IDENTIFIERS: {(heatpump._id, "Remko-MQTT")},
             ATTR_NAME: CONF_NAME,
@@ -121,14 +109,6 @@ class HeatPumpSwitch(SwitchEntity):
             ATTR_MODEL: CONF_VER,
             "entry_type": DeviceEntryType.SERVICE,
         }
-
-    async def async_turn_on(self):
-        value = int(1)
-        await self._heatpump.send_mqtt_reg(self._idx, value)
-
-    async def async_turn_off(self):
-        value = int(0)
-        await self._heatpump.send_mqtt_reg(self._idx, value)
 
     @property
     def name(self):
@@ -144,16 +124,12 @@ class HeatPumpSwitch(SwitchEntity):
     @property
     def state(self) -> Literal["on", "off"]:
         """Return the state of the sensor."""
-        return STATE_ON if (self._state) else STATE_OFF
+        return self._state
 
     @property
     def vp_reg(self):
         """Return the device class of the sensor."""
         return self._vp_reg
-
-    @cached_property
-    def is_on(self) -> bool:
-        return self._state == True
 
     @property
     def sorter(self):
@@ -168,32 +144,8 @@ class HeatPumpSwitch(SwitchEntity):
     @property
     def device_class(self):
         """Return the class of this device."""
-        return f"{DOMAIN}_HeatPumpSwitch"
+        return f"{DOMAIN}_HeatPumpButton"
 
-    async def async_update(self):
-        """Update the value of the entity."""
-        """Update the new state of the sensor."""
-
-        _LOGGER.debug("update: " + self._idx)
-        reg_state = self._hpstate.get_value(self._vp_reg)
-        if self._state is None:
-            _LOGGER.warning("Could not get data for %s", self._idx)
-        else:
-            self._state = int(reg_state) > 0
-
-    async def _async_update_event(self, event):
-        """Update the new state of the sensor."""
-
-        _LOGGER.debug("event: " + self._idx)
-        reg_state = self._hpstate[self._vp_reg]
-        if reg_state is None:
-            _LOGGER.debug("Could not get data for %s", self._idx)
-            self._state = None
-            bool_state = None
-        else:
-            bool_state = int(reg_state) > 0
-
-        if self._state != bool_state:
-            self._state = bool_state
-            self.async_schedule_update_ha_state()
-            _LOGGER.debug("async_update_ha: %s", str(bool_state))
+    async def async_press(self) -> None:
+        value = int(0)
+        await self.heatpump.send_mqtt_reg(self.reg_id, value)
