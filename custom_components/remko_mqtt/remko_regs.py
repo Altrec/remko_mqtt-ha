@@ -6,7 +6,7 @@ FIELD_MINVALUE = 3
 FIELD_MAXVALUE = 4
 
 # Query list
-query_list = []  # [1079, 1082, 1893, 1894, 1951, 5001, 5032, 5039, 5320, 5693]
+query_list = []  # [1079, 1082, 1893, 1894, 1951, 5001, 5032, 5039, 5085, 5131, 5320, 5693]
 
 
 # Register as sensors
@@ -20,6 +20,8 @@ reg_id = {
     "opmode": ["5001", "sensor_mode", "", "", ""],
     "out_temp": ["5032", "temperature", "ºC", 0, 40],
     "water_temp": ["5039", "temperature", "ºC", 0, 70],
+    "buffer_temp_req": ["5085", "temperature_input", "ºC", 20.0, 60.0],
+    "buffer_temp": ["5131", "temperature", "ºC", 0, 70],
     "el_consumption": ["5320", "sensor_el", "W", 0, 6000],
     "dhw_heating": ["5693", "action", "", "", ""],
     "communication_status": ["communication_status", "generated_sensor", "", 0, 0],
@@ -29,8 +31,10 @@ reg_id = {
 #  ['en', 'de']
 id_names = {
     "water_temp_req": ["Water temp. req.", "Warmwasser soll"],
+    "buffer_temp_req": ["Buffer temp. req.", "Heizwasser soll"],
     "out_temp": ["Outside temp.", "Außentemperatur"],
     "water_temp": ["Water temp.", "Warmwasser Temp."],
+    "buffer_temp": ["Buffer temp.", "Heizwasser Temp."],
     "el_consumption": ["Electr. power", "Leistung elektrisch"],
     "main_mode": ["Room climate mode", "Raumklima Modus"],
     "opmode": ["Operating mode", "Betriebsmodus"],
