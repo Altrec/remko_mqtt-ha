@@ -1,4 +1,4 @@
-import logging, json, asyncio
+import logging, json, asyncio, time
 
 from collections.abc import Callable, Coroutine
 import attr
@@ -65,9 +65,13 @@ class HeatPump:
     @callback
     async def message_received(self, message):
         """Handle new MQTT messages."""
-        _LOGGER.debug("%s: message.payload:[%s]", self._id, message.payload)
+        _LOGGER.debug("%s: message.payload:[%s] [%s]", self._id, message.topic, message.payload)
         try:
-            if self._mqtt_counter == self._freq:
+            if "CLIENT2HOST" in message.topic:
+                if "CLIENT_ID" in message.payload:
+                    self._last_time = time.time()
+                    _LOGGER.debug("Message from other client")
+            elif self._mqtt_counter == self._freq:
                 json_dict = json.loads(message.payload)
                 json_dict = json_dict.get("values")
                 if message.topic == self._data_topic:
@@ -88,7 +92,10 @@ class HeatPump:
                             ]:
                                 self._hpstate[k] = int(self._hpstate[k], 16) / 10
                             if reg_id[self._id_reg[k]][1] == "sensor_mode":
-                                mode = f"opmode{int(json_dict[k], 16)}"
+                                if k == "5001":
+                                    mode = f"opmode{int(json_dict[k], 16)}"
+                                if k == "5051":
+                                    mode = f"heatgenstatus{int(json_dict[k], 16)}"
                                 self._hpstate[k] = id_names[mode][self._langid]
                             if reg_id[self._id_reg[k]][1] == "select_input":
                                 if self._id_reg[k] == "main_mode":
@@ -126,6 +133,7 @@ class HeatPump:
         self.unsubscribe_callback = None
         self._freq = entry.data[CONF_FREQ]
         self._mqtt_counter = entry.data[CONF_FREQ]
+        self._last_time = time.time() - 120
 
         # Create reverse lookup dictionary (id_reg->reg_number)
 
@@ -139,6 +147,12 @@ class HeatPump:
             self._data_topic,
             self.message_received,
         )
+        self.unsubscribe_callback = await mqtt.async_subscribe(
+            self._hass,
+            self._cmd_topic,
+            self.message_received,
+        )
+
         # """ Wait before getting new values """
         await asyncio.sleep(5)
         self._mqtt_counter = self._freq
@@ -212,7 +226,11 @@ class HeatPump:
             _LOGGER.error("No MQTT message sent due to unknown register:[%s]", register)
             return
 
-        if register_id == "water_temp_req":
+        if register_id in [
+            "water_temp_req",
+            "buffer_temp_req",
+            "fixed_value_temp_req",
+        ]:
             topic = self._cmd_topic
             hex_str = hex(int(value * 10)).upper()
             hex_str = hex_str[2:].zfill(4)
@@ -229,6 +247,7 @@ class HeatPump:
         elif register_id in [
             "absence_mode",
             "party_mode",
+            "fixed_value",
         ]:
             topic = self._cmd_topic
             hex_str = hex(int(value))
@@ -250,8 +269,13 @@ class HeatPump:
 
         topic = self._cmd_topic
         value = "true"
-        if query_list:
-            payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list})
+        current_time = time.time()
+        if current_time - self._last_time >= 120:
+            if query_list:
+                payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list})
+            else:
+                payload = json.dumps({"FORCE_RESPONSE": value})
+            self._last_time = current_time
         else:
             payload = json.dumps({"FORCE_RESPONSE": value})
 
