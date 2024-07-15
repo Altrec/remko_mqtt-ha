@@ -153,6 +153,9 @@ class HeatPump:
             self.message_received,
         )
 
+        # Schedule the watchdog to run periodically
+        self._hass.loop.create_task(self.watchdog())
+
         # """ Wait before getting new values """
         await asyncio.sleep(5)
         self._mqtt_counter = self._freq
@@ -284,3 +287,11 @@ class HeatPump:
         self._hass.async_create_task(
             mqtt.async_publish(self._hass, topic, payload, qos=2, retain=False)
         )
+
+    async def watchdog(self):
+        """Check if no MQTT message is received for 5 minutes and call mqtt_keep_alive."""
+        while True:
+            await asyncio.sleep(60)  # Check every minute
+            if time.time() - self._last_time >= 300:  # 5 minutes
+                _LOGGER.debug("No MQTT message received for 5 minutes, calling mqtt_keep_alive")
+                await self.mqtt_keep_alive()
