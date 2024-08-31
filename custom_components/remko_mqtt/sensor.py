@@ -203,4 +203,8 @@ class HeatPumpSensor(SensorEntity):
     @property
     def device_class(self):
         """Return the class of this device."""
+        if self._unit == UnitOfTemperature.CELSIUS:
+            return "temperature"
+        if self._unit == "W":
+            return "power"
         return f"{DOMAIN}_HeatPumpSensor"

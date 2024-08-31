@@ -6,7 +6,7 @@ FIELD_MINVALUE = 3
 FIELD_MAXVALUE = 4
 
 # Query list
-query_list = [1079, 1082, 1893, 1894, 1951, 1972, 1974, 5001, 5032, 5039, 5051, 5055, 5085, 5131, 5320, 5321, 5693]
+query_list = [1079, 1082, 1893, 1894, 1951, 1972, 1974, 5001, 5032, 5027, 5039, 5051, 5055, 5085, 5131, 5320, 5321, 5693]
 
 # Register as sensors
 reg_id = {
@@ -25,6 +25,7 @@ reg_id = {
     "water_temp": ["5039", "temperature", "ºC", 0, 70],
     "buffer_temp_target": ["5085", "temperature", "ºC", 0, 70],
     "buffer_temp": ["5131", "temperature", "ºC", 0, 70],
+    "circulation_temp": ["5027", "temperature", "ºC", 0, 70],
     "el_consumption": ["5320", "sensor_el", "W", 0, 6000],
     "th_consumption": ["5321", "sensor_el", "W", 0, 20000],
     "dhw_heating": ["5693", "action", "", "", ""],
@@ -41,6 +42,7 @@ id_names = {
     "mixed_temp": ["Mixed temp.", "Gemischte Temperatur"],
     "water_temp": ["Water temp.", "Warmwasser Temp."],
     "buffer_temp": ["Buffer temp.", "Heizwasser Temp."],
+    "circulation_temp": ["Circulation temp.", "Zirkulation Temp."],
     "el_consumption": ["Electr. power", "Leistung elektrisch"],
     "th_consumption": ["Therm. power", "Leistung thermisch"],
     "main_mode": ["Room climate mode", "Raumklima Modus"],
