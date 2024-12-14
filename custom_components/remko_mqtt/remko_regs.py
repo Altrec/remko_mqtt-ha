@@ -6,7 +6,7 @@ FIELD_MINVALUE = 3
 FIELD_MAXVALUE = 4
 
 # Query list
-query_list = []  # [1079, 1082, 1893, 1894, 1951, 5001, 5032, 5039, 5085, 5131, 5320, 5693]
+query_list = []  # [1079, 1082, 1893, 1894, 1951, 5001, 5032, 5039, 5055, 5085, 5131, 5320, 5693]
 
 
 # Register as sensors
@@ -21,6 +21,7 @@ reg_id = {
     "fixed_temp_req": ["1974", "temperature_input", "ºC", 20.0, 60.0],
     "opmode": ["5001", "sensor_mode", "", "", ""],
     "out_temp": ["5032", "temperature", "ºC", 0, 40],
+    "mixed_temp": ["5055", "temperature", "ºC", 0, 40],
     "water_temp": ["5039", "temperature", "ºC", 0, 70],
     "heat_gen_status": ["5051", "binary_sensor", "", "", ""],
     "el_consumption": ["5320", "sensor_el", "W", 0, 6000],
@@ -34,6 +35,7 @@ id_names = {
     "water_temp_req": ["Water temp. req.", "Warmwasser soll"],
     "buffer_temp_req": ["Buffer temp. req.", "Heizwasser soll"],
     "out_temp": ["Outside temp.", "Außentemperatur"],
+    "mixed_temp": ["Mixed temp.", "Gemischte Temperatur"],
     "water_temp": ["Water temp.", "Warmwasser Temp."],
     "heating_circ_mode": ["Heating circuit mode", "Heizkreis Modus"],
     "fixed_temp_req": ["fixed value temp.", "Festwert Temp."],
