@@ -238,25 +238,18 @@ class HeatPump:
             _LOGGER.error("No MQTT message sent due to unknown register:[%s]", register)
             return
 
-        if register_id in ["water_temp_req", "fixed_temp_req"]:
+        if reg_type == "temperature_input":
             topic = self._cmd_topic
             hex_str = hex(int(value * 10)).upper()
             hex_str = hex_str[2:].zfill(4)
             payload = json.dumps({"values": {register: hex_str}})
-        elif register_id in [
-            "dhw_opmode",
-            "main_mode",
-        ]:
+        elif reg_type == "select_input":
             topic = self._cmd_topic
             if register_id == "main_mode":
                 value = value + 1
             value = str(value).zfill(2)
             payload = json.dumps({"values": {register: value}})
-        elif register_id in [
-            "absence_mode",
-            "party_mode",
-            "heating_circ_mode",
-        ]:
+        elif reg_type == "switch":
             topic = self._cmd_topic
             hex_str = hex(int(value))
             hex_str = hex_str[2:].zfill(2)

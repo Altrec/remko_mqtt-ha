@@ -1,7 +1,7 @@
 import logging
 from typing import TYPE_CHECKING, Literal, final
 from homeassistant.core import HomeAssistant, callback
-
+from functools import cached_property
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.const import (
@@ -27,11 +27,6 @@ from .remko_regs import (
     id_names,
     reg_id,
 )
-
-if TYPE_CHECKING:
-    from functools import cached_property
-else:
-    from homeassistant.backports.functools import cached_property
 
 _LOGGER = logging.getLogger(__name__)
 

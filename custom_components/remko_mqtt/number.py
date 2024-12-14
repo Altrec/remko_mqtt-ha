@@ -164,7 +164,7 @@ class HeatPumpNumber(NumberEntity):
         return False
 
     @property
-    def state(self):
+    def native_value(self):
         """Return the state of the number."""
         return self._state
 
@@ -174,7 +174,7 @@ class HeatPumpNumber(NumberEntity):
         return self._vp_reg
 
     @property
-    def unit_of_measurement(self):
+    def native_unit_of_measurement(self):
         """Return the unit of measurement."""
         return self._unit
 
@@ -208,7 +208,7 @@ class HeatPumpNumber(NumberEntity):
         """Return the class of this device."""
         return f"{DOMAIN}_HeatPumpNumber"
 
-    async def async_set_value(self, value: float) -> None:
+    async def async_set_native_value(self, value: float) -> None:
         if value != self._heatpump._hpstate[self._vp_reg]:
             self._heatpump._hpstate[self._vp_reg] = value
             await self._heatpump.send_mqtt_reg(self._idx, value)

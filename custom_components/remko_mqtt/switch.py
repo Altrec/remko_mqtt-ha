@@ -1,6 +1,7 @@
 import logging
-from typing import TYPE_CHECKING, Literal, final
+from typing import Literal, final
 from homeassistant.core import HomeAssistant, callback
+from functools import cached_property
 
 from homeassistant.const import STATE_OFF, STATE_ON
 
@@ -31,11 +32,6 @@ from .remko_regs import (
     id_names,
     reg_id,
 )
-
-if TYPE_CHECKING:
-    from functools import cached_property
-else:
-    from homeassistant.backports.functools import cached_property
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -100,7 +96,7 @@ class HeatPumpSwitch(SwitchEntity):
         elif device_id == "party_mode":
             self._icon = "mdi:party-popper"
         else:
-            self._icon = "mdi:lightning-outline"
+            self._icon = "mdi:gauge"
 
         self._entity_picture = None
         self._available = True
