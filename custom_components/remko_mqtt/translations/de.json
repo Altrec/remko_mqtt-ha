@@ -18,6 +18,7 @@
           "mqtt_node": "MQTT Nodename",
           "language": "Sprache",
           "freq": "Frequenz",
+          "timer": "Wartezeit",
           "remko_dbg": "Debug aktivieren"
         },
         "title": "Wärmepumpenkonfiguration",
@@ -38,6 +39,7 @@
           "mqtt_node": "MQTT Nodename",
           "language": "Sprache",
           "freq": "Frequenz",
+          "timer": "Wartezeit",
           "remko_dbg": "Debug aktivieren"
         },
         "title": "Optionen"

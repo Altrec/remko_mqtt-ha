@@ -18,6 +18,7 @@
           "mqtt_node": "MQTT Nodename",
           "language": "Language",
           "freq": "Frequency",
+          "timer": "Wait timer",
           "remko_dbg": "Enable debug"
         },
         "title": "Heatpump config",
@@ -38,6 +39,7 @@
           "mqtt_node": "MQTT Nodename",
           "language": "Language",
           "freq": "Frequency",
+          "timer": "Wait timer",
           "remko_dbg": "Enable debug"
         },
         "title": "Options"

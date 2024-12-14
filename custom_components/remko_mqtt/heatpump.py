@@ -1,4 +1,4 @@
-import logging, json, asyncio
+import logging, json, asyncio, time
 
 from collections.abc import Callable, Coroutine
 import attr
@@ -37,6 +37,7 @@ from .const import (
     CONF_MQTT_DBG,
     CONF_LANGUAGE,
     CONF_FREQ,
+    CONF_TIMER,
     AVAILABLE_LANGUAGES,
 )
 
@@ -65,9 +66,16 @@ class HeatPump:
     @callback
     async def message_received(self, message):
         """Handle new MQTT messages."""
-        _LOGGER.debug("%s: message.payload:[%s]", self._id, message.payload)
+        _LOGGER.debug(
+            "%s: message.payload:[%s] [%s]", self._id, message.topic, message.payload
+        )
         try:
-            if self._mqtt_counter == self._freq:
+            # In case the heatpump is controlled from another client don't send query_list
+            if "CLIENT2HOST" in message.topic:
+                if "CLIENT_ID" in message.payload:
+                    self._last_time = time.time()
+                    _LOGGER.debug("Message from other client")
+            elif self._mqtt_counter == self._freq:
                 json_dict = json.loads(message.payload)
                 json_dict = json_dict.get("values")
                 if message.topic == self._data_topic:
@@ -125,6 +133,8 @@ class HeatPump:
         self._id_reg = {}
         self.unsubscribe_callback = None
         self._freq = entry.data[CONF_FREQ]
+        self._timer = entry.data[CONF_TIMER]
+        self._last_time = time.time() - self._timer
         self._mqtt_counter = entry.data[CONF_FREQ]
 
         # Create reverse lookup dictionary (id_reg->reg_number)
@@ -139,6 +149,15 @@ class HeatPump:
             self._data_topic,
             self.message_received,
         )
+        self.unsubscribe_callback = await mqtt.async_subscribe(
+            self._hass,
+            self._cmd_topic,
+            self.message_received,
+        )
+
+        # Schedule the watchdog to run periodically
+        self._hass.loop.create_task(self.watchdog())
+
         # """ Wait before getting new values """
         await asyncio.sleep(5)
         self._mqtt_counter = self._freq
@@ -148,6 +167,11 @@ class HeatPump:
         self.unsubscribe_callback = await mqtt.async_unload_entry(
             self._hass,
             self._data_topic,
+            self.message_received,
+        )
+        self.unsubscribe_callback = await mqtt.async_unload_entry(
+            self._hass,
+            self._cmd_topic,
             self.message_received,
         )
 
@@ -161,6 +185,7 @@ class HeatPump:
         self._data_topic = self._mqtt_base + "HOST2CLIENT"
         self._cmd_topic = self._mqtt_base + "CLIENT2HOST"
         self._freq = entry.data[CONF_FREQ]
+        self._timer = entry.data[CONF_TIMER]
 
         # Provide some debug info
         _LOGGER.debug(
@@ -202,6 +227,7 @@ class HeatPump:
         """Service to send a message."""
 
         register = reg_id[register_id][0]
+        reg_type = reg_id[register_id][1]
         _LOGGER.debug("register:[%s]", register)
 
         if not (isinstance(value, int) or isinstance(value, float)) or value is None:
@@ -212,7 +238,7 @@ class HeatPump:
             _LOGGER.error("No MQTT message sent due to unknown register:[%s]", register)
             return
 
-        if register_id == "water_temp_req":
+        if register_id in ["water_temp_req", "fixed_temp_req"]:
             topic = self._cmd_topic
             hex_str = hex(int(value * 10)).upper()
             hex_str = hex_str[2:].zfill(4)
@@ -229,6 +255,7 @@ class HeatPump:
         elif register_id in [
             "absence_mode",
             "party_mode",
+            "heating_circ_mode",
         ]:
             topic = self._cmd_topic
             hex_str = hex(int(value))
@@ -250,7 +277,7 @@ class HeatPump:
 
         topic = self._cmd_topic
         value = "true"
-        if query_list:
+        if query_list and time.time() - self._last_time >= self._timer:
             payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list})
         else:
             payload = json.dumps({"FORCE_RESPONSE": value})
@@ -260,3 +287,13 @@ class HeatPump:
         self._hass.async_create_task(
             mqtt.async_publish(self._hass, topic, payload, qos=2, retain=False)
         )
+
+    async def watchdog(self):
+        """Check if no MQTT message has been received for 5 minutes and call mqtt_keep_alive."""
+        while True:
+            await asyncio.sleep(60)  # Check every minute
+            if time.time() - self._last_time >= 300:  # 5 minutes
+                _LOGGER.debug(
+                    "No MQTT message received for 5 minutes, calling mqtt_keep_alive"
+                )
+                await self.mqtt_keep_alive()

@@ -12,6 +12,7 @@ CONF_MQTT_DBG = "remko_dbg"
 CONF_LANGUAGE = "language"
 CONF_DATA = "data_msg"
 CONF_FREQ = "freq"
+CONF_TIMER = "timer"
 DEFAULT_DBG = False
 AVAILABLE_LANGUAGES = ["en", "de"]
 

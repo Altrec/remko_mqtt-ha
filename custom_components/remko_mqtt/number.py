@@ -1,7 +1,6 @@
 import logging
 from homeassistant.core import callback
 
-
 from homeassistant.components.number import NumberEntity
 from homeassistant.const import (
     ATTR_IDENTIFIERS,

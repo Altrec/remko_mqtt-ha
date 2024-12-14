@@ -15,6 +15,7 @@ from .const import (
     CONF_MQTT_DBG,
     CONF_LANGUAGE,
     CONF_FREQ,
+    CONF_TIMER,
     AVAILABLE_LANGUAGES,
 )
 
@@ -56,6 +57,7 @@ class DomainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ),
                 ),
                 vol.Required(CONF_FREQ, default=100): cv.positive_int,
+                vol.Required(CONF_TIMER, default=120): cv.positive_int,
                 vol.Required(CONF_MQTT_DBG, default=False): cv.boolean,
             }
         )
@@ -79,6 +81,9 @@ class DomainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ),
                     vol.Required(
                         CONF_FREQ, default=user_input[CONF_FREQ]
+                    ): cv.positive_int,
+                    vol.Required(
+                        CONF_TIMER, default=user_input[CONF_TIMER]
                     ): cv.positive_int,
                     vol.Required(
                         CONF_MQTT_DBG, default=user_input[CONF_MQTT_DBG]
@@ -131,6 +136,7 @@ class DomainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_LANGUAGE: user_input[CONF_LANGUAGE],
                         CONF_MQTT_DBG: user_input[CONF_MQTT_DBG],
                         CONF_FREQ: user_input[CONF_FREQ],
+                        CONF_TIMER: user_input[CONF_TIMER],
                     },
                     options={},
                 )
@@ -184,6 +190,9 @@ class OptionsFlow(config_entries.OptionsFlow):
                     CONF_FREQ, default=self.config_entry.data.get(CONF_FREQ)
                 ): cv.positive_int,
                 vol.Required(
+                    CONF_TIMER, default=self.config_entry.data.get(CONF_TIMER)
+                ): cv.positive_int,
+                vol.Required(
                     CONF_MQTT_DBG, default=self.config_entry.data.get(CONF_MQTT_DBG)
                 ): cv.boolean,
             }
@@ -207,6 +216,9 @@ class OptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Required(
                         CONF_FREQ, default=user_input[CONF_FREQ]
+                    ): cv.positive_int,
+                    vol.Required(
+                        CONF_TIMER, default=self.config_entry.data.get(CONF_TIMER)
                     ): cv.positive_int,
                     vol.Required(
                         CONF_MQTT_DBG, default=user_input[CONF_MQTT_DBG]
@@ -255,6 +267,7 @@ class OptionsFlow(config_entries.OptionsFlow):
                     CONF_MQTT_NODE: prefix,
                     CONF_LANGUAGE: user_input[CONF_LANGUAGE],
                     CONF_FREQ: user_input[CONF_FREQ],
+                    CONF_TIMER: user_input[CONF_TIMER],
                     CONF_MQTT_DBG: user_input[CONF_MQTT_DBG],
                 }
 
