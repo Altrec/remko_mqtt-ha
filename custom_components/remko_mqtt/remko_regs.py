@@ -5,10 +5,6 @@ FIELD_UNIT = 2
 FIELD_MINVALUE = 3
 FIELD_MAXVALUE = 4
 
-# Query list
-query_list = []  # [1079, 1082, 1893, 1894, 1951, 5001, 5032, 5039, 5055, 5085, 5131, 5320, 5693]
-
-
 # Register as sensors
 reg_id = {
     #  reg_id: ['reg#', 'type', 'unit', 'min', 'max'],
@@ -20,11 +16,15 @@ reg_id = {
     "heating_circ_mode": ["1972", "switch", "", "", ""],
     "fixed_temp_req": ["1974", "temperature_input", "ºC", 20.0, 60.0],
     "opmode": ["5001", "sensor_mode", "", "", ""],
+    "circulation_temp": ["5027", "temperature", "ºC", 0, 70],
     "out_temp": ["5032", "temperature", "ºC", 0, 40],
-    "mixed_temp": ["5055", "temperature", "ºC", 0, 40],
     "water_temp": ["5039", "temperature", "ºC", 0, 70],
     "heat_gen_status": ["5051", "binary_sensor", "", "", ""],
+    "mixed_temp": ["5055", "temperature", "ºC", 0, 40],
+    "heat_water_temp_req": ["5085", "temperature_input", "ºC", 20.0, 60.0],
+    "heat_water_temp": ["5131", "temperature", "ºC", 0, 70],
     "el_consumption": ["5320", "sensor_el", "W", 0, 6000],
+    "th_consumption": ["5321", "sensor_el", "W", 0, 20000],
     "dhw_heating": ["5693", "action", "", "", ""],
     "communication_status": ["communication_status", "generated_sensor", "", 0, 0],
 }
@@ -32,21 +32,24 @@ reg_id = {
 # Translation dictionary
 #  ['en', 'de']
 id_names = {
-    "water_temp_req": ["Water temp. req.", "Warmwasser soll"],
-    "buffer_temp_req": ["Buffer temp. req.", "Heizwasser soll"],
-    "out_temp": ["Outside temp.", "Außentemperatur"],
-    "mixed_temp": ["Mixed temp.", "Gemischte Temperatur"],
-    "water_temp": ["Water temp.", "Warmwasser Temp."],
-    "heating_circ_mode": ["Heating circuit mode", "Heizkreis Modus"],
-    "fixed_temp_req": ["fixed value temp.", "Festwert Temp."],
-    "el_consumption": ["Electr. power", "Leistung elektrisch"],
-    "heat_gen_status": ["Heat generator status", "Wärmeerzeuger Status"],
-    "main_mode": ["Room climate mode", "Raumklima Modus"],
-    "opmode": ["Operating mode", "Betriebsmodus"],
-    "dhw_opmode": ["DHW mode", "WW Modus"],
     "absence_mode": ["Absence mode", "Abwesenheitssmodus"],
-    "party_mode": ["Party mode", "Partymodus"],
+    "circulation_temp": ["Circulation temp.", "Zirkulation Temp."],
     "dhw_heating": ["1x DHW heating", "1x WW aufheizen"],
+    "dhw_opmode": ["DHW mode", "WW Modus"],
+    "el_consumption": ["Electr. power", "Leistung elektrisch"],
+    "fixed_temp_req": ["fixed value temp.", "Festwert Temp."],
+    "heating_circ_mode": ["Heating circuit mode", "Heizkreis Modus"],
+    "heat_gen_status": ["Heat generator status", "Wärmeerzeuger Status"],
+    "heat_water_temp": ["Heating water temp.", "Heizwasser Temp."],
+    "heat_water_temp_req": ["Heating water temp. req.", "Heizwasser soll"],
+    "main_mode": ["Room climate mode", "Raumklima Modus"],
+    "mixed_temp": ["Mixed temp.", "Gemischte Temperatur"],
+    "opmode": ["Operating mode", "Betriebsmodus"],
+    "out_temp": ["Outside temp.", "Außentemperatur"],
+    "party_mode": ["Party mode", "Partymodus"],
+    "th_consumption": ["Therm. power", "Leistung thermisch"],
+    "water_temp": ["Water temp.", "Warmwasser Temp."],
+    "water_temp_req": ["Water temp. req.", "Warmwasser soll"],
     "mode1": ["Auto", "Auto"],
     "mode2": ["Heating", "Heizen"],
     "mode3": ["Standby", "Standby"],

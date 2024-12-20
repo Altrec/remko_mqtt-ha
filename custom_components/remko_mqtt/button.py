@@ -143,4 +143,4 @@ class HeatPumpButton(ButtonEntity):
 
     async def async_press(self) -> None:
         value = int(0)
-        await self.heatpump.send_mqtt_reg(self.reg_id, value)
+        await self._heatpump.send_mqtt_reg(self._idx, value)

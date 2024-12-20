@@ -1,12 +1,10 @@
+"""Module for Remko MQTT binary sensor integration."""
+
 import logging
-from homeassistant.core import callback
-from functools import cached_property
 from typing import Literal, final
 
 from homeassistant.components.binary_sensor import (
-    BinarySensorDeviceClass,
     BinarySensorEntity,
-    BinarySensorEntityDescription,
 )
 from homeassistant.const import (
     ATTR_IDENTIFIERS,
@@ -16,7 +14,9 @@ from homeassistant.const import (
     STATE_OFF,
     STATE_ON,
 )
+from homeassistant.core import callback
 from homeassistant.helpers.device_registry import DeviceEntryType
+from propcache import cached_property
 
 from .const import (
     DOMAIN,
@@ -56,7 +56,10 @@ async def async_setup_entry(
     entities = []
 
     for key in reg_id:
-        if reg_id[key][FIELD_REGTYPE] == "binary_sensor":
+        if (
+            reg_id[key][FIELD_REGTYPE] == "binary_sensor"
+            and reg_id[key][FIELD_REGNUM] in heatpump._capabilites
+        ):
             device_id = key
             if key in id_names:
                 friendly_name = id_names[key][heatpump._langid]
@@ -133,7 +136,7 @@ class HeatPumpBinarySensor(BinarySensorEntity):
     @property
     def state(self) -> Literal["on", "off"]:
         """Return the state of the sensor."""
-        return STATE_ON if (self._state) else STATE_OFF
+        return STATE_ON if (self._state == "01") else STATE_OFF
 
     @property
     def vp_reg(self):
@@ -151,7 +154,6 @@ class HeatPumpBinarySensor(BinarySensorEntity):
 
     async def async_update(self):
         """Update the value of the entity."""
-        """Update the new state of the sensor."""
 
         _LOGGER.debug("update: " + self._idx)
         self._state = self._hpstate.get_value(self._vp_reg)

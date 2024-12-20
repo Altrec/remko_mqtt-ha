@@ -1,11 +1,13 @@
-import logging, json, asyncio, time
-
+import logging
+import json
+import asyncio
+import time
 from collections.abc import Callable, Coroutine
+
 import attr
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-
 from homeassistant.components.input_number import (
     ATTR_VALUE as INP_ATTR_VALUE,
     DOMAIN as NUMBER_DOMAIN,
@@ -21,14 +23,11 @@ from homeassistant.components.input_boolean import (
     DOMAIN as BOOLEAN_DOMAIN,
     SERVICE_RELOAD as BOOLEAN_SERVICE_RELOAD,
 )
-
 from homeassistant.const import (
     ATTR_ENTITY_ID,
     ATTR_OPTION,
 )
-from homeassistant.core import HomeAssistant
 from homeassistant.components import mqtt
-
 
 from .const import (
     DOMAIN,
@@ -40,8 +39,6 @@ from .const import (
     CONF_TIMER,
     AVAILABLE_LANGUAGES,
 )
-
-# import Remko register defines
 from .remko_regs import (
     FIELD_MAXVALUE,
     FIELD_MINVALUE,
@@ -50,7 +47,6 @@ from .remko_regs import (
     FIELD_UNIT,
     id_names,
     reg_id,
-    query_list,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -131,6 +127,7 @@ class HeatPump:
         self._domain = DOMAIN
         self._id = entry.data[CONF_ID]
         self._id_reg = {}
+        self._capabilites = []
         self.unsubscribe_callback = None
         self._freq = entry.data[CONF_FREQ]
         self._timer = entry.data[CONF_TIMER]
@@ -142,6 +139,44 @@ class HeatPump:
         for k, v in reg_id.items():
             self._id_reg[v[0]] = k
             self._hpstate[v[0]] = -1
+
+    async def check_capabilities(self):
+        # Check capabilites/possible reg_ids
+        value = "true"
+        query_list = "["
+        for i in range(1001, 5997):
+            query_list += str(i) + ","
+        query_list += "5998]"
+        payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list})
+        await mqtt.async_publish(
+            self._hass,
+            self._cmd_topic,
+            payload=payload,
+            qos=2,
+            retain=False,
+        )
+
+        # Wait for the reply
+        future = asyncio.Future()
+
+        @callback
+        def message_received(msg):
+            future.set_result(msg.payload)
+
+        unsub = await mqtt.async_subscribe(
+            self._hass, self._data_topic, message_received
+        )
+
+        try:
+            reply = await future
+        finally:
+            unsub()
+
+        json_dict = json.loads(reply)
+        json_dict = json_dict.get("values")
+
+        for k in json_dict:
+            self._capabilites.append(k)
 
     async def setup_mqtt(self):
         self.unsubscribe_callback = await mqtt.async_subscribe(
@@ -230,11 +265,11 @@ class HeatPump:
         reg_type = reg_id[register_id][1]
         _LOGGER.debug("register:[%s]", register)
 
-        if not (isinstance(value, int) or isinstance(value, float)) or value is None:
+        if not isinstance(value, (int, float)) or value is None:
             _LOGGER.error("No MQTT message sent due to missing value:[%s]", value)
             return
 
-        if not (register in self._id_reg):
+        if register not in self._id_reg:
             _LOGGER.error("No MQTT message sent due to unknown register:[%s]", register)
             return
 
@@ -249,7 +284,7 @@ class HeatPump:
                 value = value + 1
             value = str(value).zfill(2)
             payload = json.dumps({"values": {register: value}})
-        elif reg_type == "switch":
+        elif reg_type in ("switch", "action"):
             topic = self._cmd_topic
             hex_str = hex(int(value))
             hex_str = hex_str[2:].zfill(2)
@@ -270,10 +305,13 @@ class HeatPump:
 
         topic = self._cmd_topic
         value = "true"
-        if query_list and time.time() - self._last_time >= self._timer:
-            payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list})
-        else:
-            payload = json.dumps({"FORCE_RESPONSE": value})
+        query_list = "["
+        for key in reg_id:
+            query_list += reg_id[key][FIELD_REGNUM] + ","
+        query_list = query_list[:-1]
+        query_list += "]"
+        query_list and time.time() - self._last_time >= self._timer
+        payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list})
 
         _LOGGER.debug("topic:[%s]", topic)
         _LOGGER.debug("payload:[%s]", payload)

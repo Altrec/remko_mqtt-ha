@@ -63,6 +63,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_hass_started(_event: Event) -> None:
         await hass.async_create_task(heatpump.setup_mqtt())
 
+    await hass.async_create_task(heatpump.check_capabilities())
+
     # Load the platforms for heatpump
     hass.async_create_task(
         hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

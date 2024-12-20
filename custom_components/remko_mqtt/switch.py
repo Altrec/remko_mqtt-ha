@@ -55,7 +55,10 @@ async def async_setup_entry(
     entities = []
 
     for key in reg_id:
-        if reg_id[key][FIELD_REGTYPE] == "switch":
+        if (
+            reg_id[key][FIELD_REGTYPE] == "switch"
+            and reg_id[key][FIELD_REGNUM] in heatpump._capabilites
+        ):
             device_id = key
             if key in id_names:
                 friendly_name = id_names[key][heatpump._langid]
