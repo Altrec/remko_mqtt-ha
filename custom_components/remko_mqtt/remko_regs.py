@@ -27,6 +27,11 @@ reg_id = {
     "th_consumption": ["5321", "sensor_el", "W", 0, 20000],
     "dhw_heating": ["5693", "action", "", "", ""],
     "communication_status": ["communication_status", "generated_sensor", "", 0, 0],
+    "energy_electric": ["5105", "energy", "kWh", 0, 1000000000],
+    "energy_thermal": ["5119", "energy", "kWh", 0, 1000000000],
+    "energy_environmental": ["5600", "energy", "kWh", 0, 1000000000],
+    "energy_DHW_heating": ["5376", "energy", "kWh", 0, 1000000000],
+    "energy_heating": ["5374", "energy", "kWh", 0, 1000000000],
 }
 
 # Translation dictionary
@@ -50,6 +55,11 @@ id_names = {
     "th_consumption": ["Therm. power", "Leistung thermisch"],
     "water_temp": ["Water temp.", "Warmwasser Temp."],
     "water_temp_req": ["Water temp. req.", "Warmwasser soll"],
+    "energy_electric": ["Total electric energy", "Elektrische Energie gesamt"],
+    "energy_thermal": ["Total thermal energy", "Thermische Energie gesamt"],
+    "energy_environmental": ["Total environment energy", "Umgebunsgenergie gesamt"],
+    "energy_DHW_heating": ["energy DHW heating", "Energie Warmwasser"],
+    "energy_heating": ["energy heating", "Energie Heizen"],
     "mode1": ["Auto", "Auto"],
     "mode2": ["Heating", "Heizen"],
     "mode3": ["Standby", "Standby"],

@@ -59,6 +59,7 @@ async def async_setup_entry(
                 "sensor_el",
                 "sensor_input",
                 "sensor_mode",
+                "energy",
             ]
             and reg_id[key][FIELD_REGNUM] in heatpump._capabilites
         ):
@@ -103,6 +104,11 @@ class HeatPumpSensor(SensorEntity):
         ]:
             self._attr_state_class = SensorStateClass.MEASUREMENT
 
+        if vp_type in [
+            "energy",
+        ]:
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+
         # set HA instance attributes directly (mostly don't use property)
         self._attr_unique_id = f"{heatpump._domain}_{device_id}"
         self.entity_id = f"sensor.{heatpump._domain}_{device_id}"
@@ -126,6 +132,14 @@ class HeatPumpSensor(SensorEntity):
         ):
             self._icon = "mdi:temperature-celsius"
             self._unit = UnitOfTemperature.CELSIUS
+        elif (
+            vp_type
+            in [
+                "energy",
+            ]
+        ):
+            self._icon = "mdi:lightning-bolt"
+            self._unit = "kWh"
         else:
             if vp_unit:
                 self._unit = vp_unit
