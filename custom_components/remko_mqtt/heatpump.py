@@ -90,7 +90,8 @@ class HeatPump:
                                 "temperature",
                                 "temperature_input",
                             ]:
-                                self._hpstate[k] = int(self._hpstate[k], 16) / 10
+                                raw=int(self._hpstate[k], 16)
+                                self._hpstate[k] = ( -(raw & 0x8000) | (raw & 0x7fff) ) / 10
                             if reg_id[self._id_reg[k]][1] == "sensor_mode":
                                 mode = f"opmode{int(json_dict[k], 16)}"
                                 self._hpstate[k] = id_names[mode][self._langid]
