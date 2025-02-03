@@ -86,12 +86,16 @@ class HeatPump:
                                 self._hpstate[k] = int(self._hpstate[k], 16) > 0
                             if reg_id[self._id_reg[k]][1] == "sensor_el":
                                 self._hpstate[k] = int(self._hpstate[k], 16) * 100
+                            if reg_id[self._id_reg[k]][1] == "sensor_en":
+                                self._hpstate[k] = int(self._hpstate[k], 16)
                             if reg_id[self._id_reg[k]][1] in [
-                                "temperature",
-                                "temperature_input",
+                                "sensor_temp",
+                                "sensor_temp_inp",
                             ]:
-                                raw=int(self._hpstate[k], 16)
-                                self._hpstate[k] = ( -(raw & 0x8000) | (raw & 0x7fff) ) / 10
+                                raw = int(self._hpstate[k], 16)
+                                self._hpstate[k] = (
+                                    -(raw & 0x8000) | (raw & 0x7FFF)
+                                ) / 10
                             if reg_id[self._id_reg[k]][1] == "sensor_mode":
                                 mode = f"opmode{int(json_dict[k], 16)}"
                                 self._hpstate[k] = id_names[mode][self._langid]
@@ -274,7 +278,7 @@ class HeatPump:
             _LOGGER.error("No MQTT message sent due to unknown register:[%s]", register)
             return
 
-        if reg_type == "temperature_input":
+        if reg_type == "sensor_temp_inp":
             topic = self._cmd_topic
             hex_str = hex(int(value * 10)).upper()
             hex_str = hex_str[2:].zfill(4)

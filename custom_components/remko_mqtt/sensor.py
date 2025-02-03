@@ -54,11 +54,12 @@ async def async_setup_entry(
         if (
             reg_id[key][FIELD_REGTYPE]
             in [
-                "temperature",
                 "sensor",
                 "sensor_el",
+                "sensor_en",
                 "sensor_input",
                 "sensor_mode",
+                "sensor_temp",
             ]
             and reg_id[key][FIELD_REGNUM] in heatpump._capabilites
         ):
@@ -98,10 +99,14 @@ class HeatPumpSensor(SensorEntity):
         # self._attr_native_value = state
         # self._attr_native_unit_of_measurement = unit_of_measurement
         if vp_type not in [
+            "sensor_en",
             "sensor_mode",
             "generated_sensor",
         ]:
             self._attr_state_class = SensorStateClass.MEASUREMENT
+
+        if vp_type == "sensor_en":
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
 
         # set HA instance attributes directly (mostly don't use property)
         self._attr_unique_id = f"{heatpump._domain}_{device_id}"
@@ -112,27 +117,18 @@ class HeatPumpSensor(SensorEntity):
         self._name = friendly_name
         self._state = None
         self._icon = None
-        if (
-            vp_type
-            in [
-                "temperature",
-                "temperature_input",
-            ]
-        ) or (
-            vp_unit
-            in [
-                "C",
-            ]
-        ):
+        if vp_type == "sensor_temp":
             self._icon = "mdi:temperature-celsius"
             self._unit = UnitOfTemperature.CELSIUS
+        elif vp_type == "sensor_en":
+            self._icon = "mdi:lightning-bolt"
+            self._unit = vp_unit
         else:
             if vp_unit:
                 self._unit = vp_unit
             else:
                 self._unit = None
             self._icon = "mdi:gauge"
-        # "mdi:thermometer" ,"mdi:oil-temperature", "mdi:gauge", "mdi:speedometer", "mdi:alert"
         self._entity_picture = None
         self._available = True
 

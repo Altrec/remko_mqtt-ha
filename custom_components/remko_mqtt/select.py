@@ -109,7 +109,6 @@ class HeatPumpSelect(SelectEntity):
         self._state = None
         self._options = vp_options
         self._icon = "mdi:gauge"
-        # "mdi:thermometer" ,"mdi:oil-temperature", "mdi:gauge", "mdi:speedometer", "mdi:alert"
 
         self._entity_picture = None
         self._available = True

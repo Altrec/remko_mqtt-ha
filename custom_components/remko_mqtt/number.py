@@ -47,7 +47,7 @@ async def async_setup_entry(
 
     for key in reg_id:
         if (
-            reg_id[key][FIELD_REGTYPE] == "temperature_input"
+            reg_id[key][FIELD_REGTYPE] == "sensor_temp_inp"
             and reg_id[key][FIELD_REGNUM] in heatpump._capabilites
         ):
             device_id = key
@@ -114,8 +114,8 @@ class HeatPumpNumber(NumberEntity):
         if (
             vp_type
             in [
-                "temperature",
-                "temperature_input",
+                "sensor_temp",
+                "sensor_temp_inp",
             ]
         ) or (
             vp_unit
@@ -131,7 +131,6 @@ class HeatPumpNumber(NumberEntity):
             else:
                 self._unit = None
             self._icon = "mdi:gauge"
-        # "mdi:thermometer" ,"mdi:oil-temperature", "mdi:gauge", "mdi:speedometer", "mdi:alert"
         self._min = vp_min
         self._max = vp_max
         self._step = vp_step
