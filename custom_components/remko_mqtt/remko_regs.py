@@ -18,6 +18,7 @@ reg_id = {
     "opmode": ["5001", "sensor_mode", "", "", ""],
     "circulation_temp": ["5027", "sensor_temp", "ºC", "", ""],
     "out_temp": ["5032", "sensor_temp", "ºC", "", ""],
+    "actual_temp": ["5034", "sensor_temp", "ºC", "", ""],
     "water_temp": ["5039", "sensor_temp", "ºC", "", ""],
     "heat_gen_status": ["5051", "binary_sensor", "", "", ""],
     "mixed_temp": ["5055", "sensor_temp", "ºC", "", ""],
@@ -25,12 +26,14 @@ reg_id = {
     "energy_electric": ["5105", "sensor_en", "kWh", "", ""],
     "energy_thermal": ["5119", "sensor_en", "kWh", "", ""],
     "buff_temp": ["5131", "sensor_temp", "ºC", "", ""],
+    "heating_actual_temp": ["5190", "sensor_temp", "ºC", "", ""],
     "el_consumption": ["5320", "sensor_el", "W", "", ""],
     "th_consumption": ["5321", "sensor_el", "W", "", ""],
     "energy_heating": ["5374", "sensor_en", "kWh", "", ""],
     "energy_DHW_heating": ["5376", "sensor_en", "kWh", "", ""],
     "energy_environmental": ["5600", "sensor_en", "kWh", "", ""],
     "dhw_heating": ["5693", "action", "", "", ""],
+    "compressor_starts": ["5822", "sensor_counter", "", 0, 65535],
     "communication_status": ["communication_status", "generated_sensor", "", "", ""],
 }
 
@@ -38,8 +41,10 @@ reg_id = {
 #  ['en', 'de']
 id_names = {
     "absence_mode": ["Absence mode", "Abwesenheitssmodus"],
+    "actual_temp": ["Actual temperature", "Ist-Temperatur"],
     "buff_temp": ["Buffer tank temp.", "Pufferspeicher Temp."],
     "circulation_temp": ["Circulation temp.", "Zirkulation Temp."],
+    "compressor_starts": ["compressor starts", "Kompressorstarts"],
     "dhw_heating": ["1x DHW heating", "1x WW aufheizen"],
     "dhw_opmode": ["DHW mode", "WW Modus"],
     "el_consumption": ["Electr. power", "Leistung elektrisch"],
@@ -49,6 +54,7 @@ id_names = {
     "energy_heating": ["Energy heating", "Energie Heizen"],
     "energy_thermal": ["Therm. energy heatpump ", "Thermische Energie"],
     "fixed_temp_req": ["Fixed value temp.", "Festwert Temp."],
+    "heating_actual_temp": ["Heating water temp. (actual)", "Heizwasser Ist-Temp."],
     "heating_circ_mode": ["Heating circuit mode", "Heizkreis Modus"],
     "heat_gen_status": ["Heat generator status", "Wärmeerzeuger Status"],
     "heat_water_temp_req": ["Heating water temp. req.", "Heizwasser soll"],
