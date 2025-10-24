@@ -1,8 +1,8 @@
 # Home Assistant Remko-MQTT Integration
 
 ![python badge](https://img.shields.io/badge/Made%20with-Python-orange)
-![HassFest tests](https://github.com/Altrec/remko_mqtt-ha//workflows/Validate%20with%20hassfest/badge.svg)
-![Validate with HACS](https://github.com/Altrec/remko_mqtt-ha//workflows/Validate%20with%20HACS/badge.svg)
+![HassFest tests](https://github.com/Altrec/remko_mqtt-ha/workflows/Validate%20with%20hassfest/badge.svg)
+![Validate with HACS](https://github.com/Altrec/remko_mqtt-ha/workflows/Validate%20with%20HACS/badge.svg)
 ![github contributors](https://img.shields.io/github/contributors/Altrec/remko_mqtt-ha)
 ![last commit](https://img.shields.io/github/last-commit/Altrec/remko_mqtt-ha)
 
@@ -38,6 +38,7 @@ Contributions are welcome! If you'd like to contribute, feel free to pick up any
 The naming, translation and grouping of registers can be improved, your input is appreciated. Most of it is in the [remko_regs.py](https://github.com/Altrec/remko_mqtt-ha/blob/master/custom_components/remko_mqtt/remko_regs.py)  
 
 All help improving the integration is appreciated!
+
 
 
 
