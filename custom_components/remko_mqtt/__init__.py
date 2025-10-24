@@ -28,7 +28,7 @@ PLATFORMS = [
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up Remko‑MQTT integration."""
+    """Set up Remko-MQTT integration."""
     _LOGGER.info("Set up Remko-MQTT integration")
     hass.data.setdefault(DOMAIN, RemkoWorker(hass))
     return True

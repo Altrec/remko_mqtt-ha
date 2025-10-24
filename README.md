@@ -1,18 +1,28 @@
 # Home Assistant Remko-MQTT Integration
 
+![python badge](https://img.shields.io/badge/Made%20with-Python-orange)
+![HassFest tests](https://github.com/Altrec/remko_mqtt-ha//workflows/Validate%20with%20hassfest/badge.svg)
+![Validate with HACS](https://github.com/Altrec/remko_mqtt-ha//workflows/Validate%20with%20HACS/badge.svg)
+![github contributors](https://img.shields.io/github/contributors/Altrec/remko_mqtt-ha)
+![last commit](https://img.shields.io/github/last-commit/Altrec/remko_mqtt-ha)
+
 This integration allows you to control and monitor your Remko heatpump from Home Assistant. 
 
+# Prerequisite
+You need a configured MQTT connection to your heatpump. (Directly or via a broker like Mosquitto). Username and password are needed for the connection.
+The username is "0000000000000000"
+The password can be found in the smt.min.js file from the web interface.
+![smt.min.js](docs/smt.min.js.png)
+
 # Steps to install
-1. Configure a MQTT connection within Home Assistant to connect to your heatpump.
-   1. The username is "0000000000000000"
-   2. The password can be found in the smt.min.js file from the web interface.
-   3. ![smt.min.js](docs/smt.min.js.png)
-2. Copy the content from the custom_components folder into Home Assistant and restart Home Assistant.
-3. Go to the integrations page and add the Remko-MQTT integration to Home Assistant.
-4. Restart Home Assistant another time.
+The integration can be installed via [HACS](https://hacs.xyz/), or by manually copying the [`remko_mqtt`](https://github.com/Altrec/remko_mqtt-ha/tree/master/custom_components/) directory to Home Assistant's `config/custom_components/` directory.
+
+# Configuration
+This integration can be configured through the Home Assistant UI. From the Devices & Services page click 'Add Integration' and search for 'Remko MQTT'.
+Hint: The heatpump sends a message every second. To reduce log entries you can skip messages with the "Skipped MQTT messages" config option.
 
 ## Debugging
-Make sure you see proper mqtt messages from the Remko-MQTT in MQTT-Explorer before setting up HA.
+Make sure you see proper mqtt messages from the heatpump in a MQTT-Explorer before setting up HA.
 Debug messages are not yet fully implemented.
 
 # Available data
