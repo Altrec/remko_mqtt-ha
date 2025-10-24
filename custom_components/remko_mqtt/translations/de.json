@@ -17,8 +17,7 @@
           "id_name": "Unique ID",
           "mqtt_node": "MQTT Nodename",
           "language": "Sprache",
-          "freq": "Frequenz",
-          "timer": "Wartezeit",
+          "freq": "Zu überspringende MQTT Nachrichten",
           "remko_dbg": "Debug aktivieren"
         },
         "title": "Wärmepumpenkonfiguration",
@@ -38,8 +37,7 @@
         "data": {
           "mqtt_node": "MQTT Nodename",
           "language": "Sprache",
-          "freq": "Frequenz",
-          "timer": "Wartezeit",
+          "freq": "Zu überspringende MQTT Nachrichten",
           "remko_dbg": "Debug aktivieren"
         },
         "title": "Optionen"

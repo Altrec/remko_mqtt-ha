@@ -1,17 +1,19 @@
 import logging
-from homeassistant.core import callback
+from typing import Any
 
-
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.const import (
+    UnitOfTemperature,
     ATTR_IDENTIFIERS,
     ATTR_MANUFACTURER,
     ATTR_MODEL,
     ATTR_NAME,
 )
 from homeassistant.helpers.device_registry import DeviceEntryType
-
-from homeassistant.const import UnitOfTemperature
+from homeassistant.helpers.entity import DeviceInfo
 
 from .const import (
     DOMAIN,
@@ -55,9 +57,9 @@ async def async_setup_entry(
             reg_id[key][FIELD_REGTYPE]
             in [
                 "sensor",
+                "sensor_counter",
                 "sensor_el",
                 "sensor_en",
-                "sensor_counter",
                 "sensor_input",
                 "sensor_mode",
                 "sensor_temp",
@@ -88,37 +90,48 @@ async def async_setup_entry(
 
 
 class HeatPumpSensor(SensorEntity):
-    """Common functionality for all entities."""
+    """Common functionality for Remko MQTT sensors."""
+
+    __slots__ = (
+        "hass",
+        "_heatpump",
+        "_idx",
+        "_vp_reg",
+        "_name",
+        "_unit",
+        "_icon",
+        "_state",
+    )
 
     def __init__(
-        self, hass, heatpump, device_id, vp_reg, friendly_name, vp_type, vp_unit
-    ):
+        self,
+        hass: HomeAssistant,
+        heatpump: Any,
+        device_id: str,
+        vp_reg: str,
+        friendly_name: str | None,
+        vp_type: str,
+        vp_unit: str | None,
+    ) -> None:
         self.hass = hass
         self._heatpump = heatpump
-        self._hpstate = heatpump._hpstate
 
-        # self._attr_native_value = state
-        # self._attr_native_unit_of_measurement = unit_of_measurement
-        if vp_type not in [
-            "sensor_en",
+        if vp_type not in (
             "sensor_counter",
+            "sensor_en",
             "sensor_mode",
             "generated_sensor",
-        ]:
+        ):
             self._attr_state_class = SensorStateClass.MEASUREMENT
-
-        if vp_type in ["sensor_en", "sensor_counter"]:
+        if vp_type in ("sensor_counter", "sensor_en"):
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
 
-        # set HA instance attributes directly (mostly don't use property)
-        self._attr_unique_id = f"{heatpump._domain}_{device_id}"
-        self.entity_id = f"sensor.{heatpump._domain}_{device_id}"
+        # unique id should not include platform name
+        self._attr_unique_id = f"{heatpump._id}_{device_id}"
+        self._attr_has_entity_name = True
 
-        _LOGGER.debug("entity_id:" + self.entity_id)
-        _LOGGER.debug("idx:" + device_id)
         self._name = friendly_name
         self._state = None
-        self._icon = None
         if vp_type == "sensor_temp":
             self._icon = "mdi:temperature-celsius"
             self._unit = UnitOfTemperature.CELSIUS
@@ -129,30 +142,23 @@ class HeatPumpSensor(SensorEntity):
             self._icon = "mdi:counter"
             self._unit = vp_unit
         else:
-            if vp_unit:
-                self._unit = vp_unit
-            else:
-                self._unit = None
             self._icon = "mdi:gauge"
+            self._unit = vp_unit or None
+
         self._entity_picture = None
-        self._available = True
+        self._attr_available = True
 
         self._idx = device_id
         self._vp_reg = vp_reg
 
-        # Listen for the Remko rec event indicating new data
-        hass.bus.async_listen(
-            heatpump._domain + "_" + heatpump._id + "_msg_rec_event",
-            self._async_update_event,
+        # device info
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, heatpump._id)},
+            name=CONF_NAME,
+            manufacturer="Remko",
+            model=CONF_VER,
+            entry_type=DeviceEntryType.SERVICE,
         )
-
-        self._attr_device_info = {
-            ATTR_IDENTIFIERS: {(heatpump._id, "Remko-MQTT")},
-            ATTR_NAME: CONF_NAME,
-            ATTR_MANUFACTURER: "Remko",
-            ATTR_MODEL: CONF_VER,
-            "entry_type": DeviceEntryType.SERVICE,
-        }
 
     @property
     def name(self):
@@ -184,26 +190,42 @@ class HeatPumpSensor(SensorEntity):
         """Return the icon of the sensor."""
         return self._icon
 
-    async def async_update(self):
-        """Update the value of the entity."""
-        """Update the new state of the sensor."""
+    async def async_added_to_hass(self) -> None:
+        """Register listener for heatpump update events."""
 
-        _LOGGER.debug("update: " + self._idx)
-        self._state = self._hpstate.get_value(self._vp_reg)
-        if self._state is None:
+        @callback
+        def _handle_event(event) -> None:
+            # schedule coroutine that updates the entity
+            self.hass.async_create_task(self._async_update_event(event))
+
+        listener = self.hass.bus.async_listen(
+            f"{self._heatpump._domain}_{self._heatpump._id}_msg_rec_event",
+            _handle_event,
+        )
+        self.async_on_remove(listener)
+
+    async def async_update(self) -> None:
+        """Fetch latest value from the heatpump object."""
+        _LOGGER.debug("update: %s", self._idx)
+        value = self._heatpump.get_value(self._vp_reg)
+        if value is None:
             _LOGGER.warning("Could not get data for %s", self._idx)
+            self._attr_available = False
+            return
+        self._attr_available = True
+        self._state = value
 
-    async def _async_update_event(self, event):
-        """Update the new state of the sensor."""
-
-        _LOGGER.debug("event: " + self._idx)
-        state = self._hpstate[self._vp_reg]
-        if state is None:
+    async def _async_update_event(self, event) -> None:
+        """Handle event: update state from heatpump cache and notify HA if changed."""
+        _LOGGER.debug("event: %s", self._idx)
+        value = self._heatpump.get_value(self._vp_reg)
+        if value is None:
             _LOGGER.debug("Could not get data for %s", self._idx)
-        if self._state != state:
-            self._state = state
+            return
+        if self._state != value:
+            self._state = value
             self.async_schedule_update_ha_state()
-            _LOGGER.debug("async_update_ha: %s", str(state))
+            _LOGGER.debug("async_update_ha: %s -> %s", self._idx, str(value))
 
     @property
     def device_class(self):

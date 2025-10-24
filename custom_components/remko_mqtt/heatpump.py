@@ -3,6 +3,7 @@ import json
 import asyncio
 import time
 from collections.abc import Callable, Coroutine
+from datetime import timedelta
 
 import attr
 
@@ -28,6 +29,7 @@ from homeassistant.const import (
     ATTR_OPTION,
 )
 from homeassistant.components import mqtt
+from homeassistant.helpers.event import async_track_time_interval
 
 from .const import (
     DOMAIN,
@@ -36,7 +38,6 @@ from .const import (
     CONF_MQTT_DBG,
     CONF_LANGUAGE,
     CONF_FREQ,
-    CONF_TIMER,
     AVAILABLE_LANGUAGES,
 )
 from .remko_regs import (
@@ -56,10 +57,11 @@ class HeatPump:
     _dbg = True
     _mqtt_base = ""
     _langid = 0
-    unsubscribe_callback: Callable[[], None]
+    _unsub_data: Callable[[], None] | None = None
+    _unsub_cmd: Callable[[], None] | None = None
+    _watchdog_unsub: Callable[[], None] | None = None
 
     # ###
-    @callback
     async def message_received(self, message):
         """Handle new MQTT messages."""
         _LOGGER.debug(
@@ -135,14 +137,14 @@ class HeatPump:
         self._id = entry.data[CONF_ID]
         self._id_reg = {}
         self._capabilites = []
-        self.unsubscribe_callback = None
+        # store individual unsubscribe callbacks
+        self._unsub_data = None
+        self._unsub_cmd = None
         self._freq = entry.data[CONF_FREQ]
-        self._timer = entry.data[CONF_TIMER]
-        self._last_time = time.time() - self._timer
+        self._last_time = time.time()
         self._mqtt_counter = entry.data[CONF_FREQ]
 
         # Create reverse lookup dictionary (id_reg->reg_number)
-
         for k, v in reg_id.items():
             self._id_reg[v[0]] = k
             self._hpstate[v[0]] = -1
@@ -150,10 +152,7 @@ class HeatPump:
     async def check_capabilities(self):
         # Check capabilites/possible reg_ids
         value = "true"
-        query_list = "["
-        for i in range(1001, 5997):
-            query_list += str(i) + ","
-        query_list += "5998]"
+        query_list = "[" + ",".join(str(i) for i in range(1001, 5999)) + "]"
         payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list})
         await mqtt.async_publish(
             self._hass,
@@ -186,19 +185,19 @@ class HeatPump:
             self._capabilites.append(k)
 
     async def setup_mqtt(self):
-        self.unsubscribe_callback = await mqtt.async_subscribe(
+        self._unsub_data = await mqtt.async_subscribe(
             self._hass,
             self._data_topic,
             self.message_received,
         )
-        self.unsubscribe_callback = await mqtt.async_subscribe(
+        self._unsub_cmd = await mqtt.async_subscribe(
             self._hass,
             self._cmd_topic,
             self.message_received,
         )
 
-        # Schedule the watchdog to run periodically
-        self._hass.loop.create_task(self.watchdog())
+        # Schedule watchdog using Home Assistant helpers (registers an unsubscribe)
+        self._hass.async_create_task(self.watchdog())
 
         # """ Wait before getting new values """
         await asyncio.sleep(5)
@@ -206,20 +205,38 @@ class HeatPump:
         self._hass.bus.fire(self._domain + "_" + self._id + "_msg_rec_event", {})
 
     async def remove_mqtt(self):
-        self.unsubscribe_callback = await mqtt.async_unload_entry(
-            self._hass,
-            self._data_topic,
-            self.message_received,
-        )
-        self.unsubscribe_callback = await mqtt.async_unload_entry(
-            self._hass,
-            self._cmd_topic,
-            self.message_received,
-        )
+        # Call stored unsubscribe callbacks
+        if self._unsub_data is not None:
+            try:
+                self._unsub_data()
+            finally:
+                self._unsub_data = None
+
+        if self._unsub_cmd is not None:
+            try:
+                self._unsub_cmd()
+            finally:
+                self._unsub_cmd = None
+
+        # Unregister watchdog if active
+        if self._watchdog_unsub is not None:
+            try:
+                self._watchdog_unsub()
+            finally:
+                self._watchdog_unsub = None
 
     async def update_config(self, entry):
-        if self.unsubscribe_callback is not None:
-            self.unsubscribe_callback()
+        # Unsubscribe any existing subscriptions before updating topics
+        if self._unsub_data is not None:
+            self._unsub_data()
+            self._unsub_data = None
+        if self._unsub_cmd is not None:
+            self._unsub_cmd()
+            self._unsub_cmd = None
+        # Unregister watchdog while updating
+        if self._watchdog_unsub is not None:
+            self._watchdog_unsub()
+            self._watchdog_unsub = None
         lang = entry.data[CONF_LANGUAGE]
         self._langid = AVAILABLE_LANGUAGES.index(lang)
         self._dbg = entry.data[CONF_MQTT_DBG]
@@ -227,7 +244,6 @@ class HeatPump:
         self._data_topic = self._mqtt_base + "HOST2CLIENT"
         self._cmd_topic = self._mqtt_base + "CLIENT2HOST"
         self._freq = entry.data[CONF_FREQ]
-        self._timer = entry.data[CONF_TIMER]
 
         # Provide some debug info
         _LOGGER.debug(
@@ -260,10 +276,6 @@ class HeatPump:
     def update_state(self, command, state_command):
         """Send MQTT message to Remko."""
         _LOGGER.debug("update_state:" + command + " " + state_command)
-
-    # ### ##################################################################
-    # Write specific value_id with data, value_id will be translated to register number.
-    # Default service used by input_number automations
 
     async def send_mqtt_reg(self, register_id, value) -> None:
         """Service to send a message."""
@@ -312,12 +324,12 @@ class HeatPump:
 
         topic = self._cmd_topic
         value = "true"
-        query_list = "["
-        for key in reg_id:
-            query_list += reg_id[key][FIELD_REGNUM] + ","
-        query_list = query_list[:-1]
-        query_list += "]"
-        query_list and time.time() - self._last_time >= self._timer
+        if reg_id:
+            query_list = (
+                "[" + ",".join(entry[FIELD_REGNUM] for entry in reg_id.values()) + "]"
+            )
+        else:
+            query_list = "[]"
         payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list})
 
         _LOGGER.debug("topic:[%s]", topic)
@@ -326,12 +338,20 @@ class HeatPump:
             mqtt.async_publish(self._hass, topic, payload, qos=2, retain=False)
         )
 
-    async def watchdog(self):
-        """Check if no MQTT message has been received for 5 minutes and call mqtt_keep_alive."""
-        while True:
-            await asyncio.sleep(60)  # Check every minute
+    async def watchdog(self) -> None:
+        """Register a periodic checker that triggers mqtt_keep_alive when no messages arrive."""
+        from homeassistant.core import callback
+
+        @callback
+        def _check(now):
             if time.time() - self._last_time >= 300:  # 5 minutes
                 _LOGGER.debug(
                     "No MQTT message received for 5 minutes, calling mqtt_keep_alive"
                 )
-                await self.mqtt_keep_alive()
+                # schedule the coroutine
+                self._hass.async_create_task(self.mqtt_keep_alive())
+
+        # Register a once-per-minute checker and keep the unsubscribe callable
+        self._watchdog_unsub = async_track_time_interval(
+            self._hass, _check, timedelta(minutes=1)
+        )

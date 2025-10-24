@@ -1,146 +1,111 @@
 import logging
-from typing import TYPE_CHECKING, Literal, final
-from homeassistant.core import HomeAssistant, callback
-from functools import cached_property
+from typing import Any, Literal
 
+from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.components.button import ButtonEntity
-from homeassistant.const import (
-    ATTR_IDENTIFIERS,
-    ATTR_MANUFACTURER,
-    ATTR_MODEL,
-    ATTR_NAME,
-    EntityCategory,
-)
-
 from homeassistant.helpers.device_registry import DeviceEntryType
 
-from .const import (
-    DOMAIN,
-    CONF_ID,
-    CONF_NAME,
-    CONF_VER,
-)
-
-from .remko_regs import (
-    FIELD_REGNUM,
-    FIELD_REGTYPE,
-    id_names,
-    reg_id,
-)
+from .const import DOMAIN, CONF_ID, CONF_NAME, CONF_VER
+from .remko_regs import FIELD_REGNUM, FIELD_REGTYPE, id_names, reg_id
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
-    hass, config_entry, async_add_entities, discovery_info=None
-):
-    """Set up platform for a new integration.
-    Called by the HA framework after async_setup_platforms has been called
-    during initialization of a new integration.
-    """
-
-    @callback
-    def async_add_sensor(sensor):
-        """Add a Remko button property"""
-        async_add_entities([sensor], True)
-        # _LOGGER.debug('Added new sensor %s / %s', sensor.entity_id, sensor.unique_id)
-
-    worker = hass.data[DOMAIN].worker
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+    discovery_info: dict | None = None,
+) -> None:
+    """Set up platform for a new integration."""
     heatpump = hass.data[DOMAIN]._heatpumps[config_entry.data[CONF_ID]]
-    entities = []
+    entities: list[ButtonEntity] = []
 
-    for key in reg_id:
-        if reg_id[key][FIELD_REGTYPE] == "action":
-            device_id = key
-            if key in id_names:
-                friendly_name = id_names[key][heatpump._langid]
-            else:
-                friendly_name = None
-            vp_reg = reg_id[key][FIELD_REGNUM]
+    for device_id, meta in reg_id.items():
+        if meta[FIELD_REGTYPE] != "action":
+            continue
 
-            entities.append(
-                HeatPumpButton(
-                    hass,
-                    heatpump,
-                    device_id,
-                    vp_reg,
-                    friendly_name,
-                )
+        friendly_name = id_names.get(device_id, [None])[heatpump._langid]
+        vp_reg = meta[FIELD_REGNUM]
+
+        entities.append(
+            HeatPumpButton(
+                hass,
+                heatpump,
+                device_id,
+                vp_reg,
+                friendly_name,
             )
+        )
+
     async_add_entities(entities)
 
 
 class HeatPumpButton(ButtonEntity):
-    """Common functionality for all entities."""
+    """Remko MQTT actionable button entity."""
 
-    def __init__(self, hass, heatpump, device_id, vp_reg, friendly_name):
+    __slots__ = (
+        "hass",
+        "_heatpump",
+        "_hpstate",
+        "_vp_reg",
+        "_idx",
+    )
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        heatpump: Any,
+        device_id: str,
+        vp_reg: str,
+        friendly_name: str | None,
+    ) -> None:
         self.hass = hass
         self._heatpump = heatpump
         self._hpstate = heatpump._hpstate
 
-        # set HA instance attributes directly (mostly don't use property)
-        self._attr_unique_id = f"{heatpump._domain}_{device_id}"
-        self.entity_id = f"switch.{heatpump._domain}_{device_id}"
+        # Unique id should not contain integration domain per guidelines
+        self._attr_unique_id = f"{heatpump._id}_{device_id}"
+        self._attr_name = friendly_name
+        self._attr_has_entity_name = True
 
-        _LOGGER.debug("entity_id:" + self.entity_id)
-        _LOGGER.debug("idx:" + device_id)
-        self._name = friendly_name
-        self._state = None
-        if device_id == "dhw_heating":
-            self._icon = "mdi:heat-wave"
-        else:
-            self._icon = "mdi:gauge"
+        _LOGGER.debug(
+            "creating button entity %s for idx %s", self._attr_unique_id, device_id
+        )
 
-        self._entity_picture = None
-        self._available = True
+        # icon/availability
+        self._attr_icon = "mdi:heat-wave" if device_id == "dhw_heating" else "mdi:gauge"
+        self._attr_available = True
 
         self._idx = device_id
         self._vp_reg = vp_reg
 
-        self._attr_device_info = {
-            ATTR_IDENTIFIERS: {(heatpump._id, "Remko-MQTT")},
-            ATTR_NAME: CONF_NAME,
-            ATTR_MANUFACTURER: "Remko",
-            ATTR_MODEL: CONF_VER,
-            "entry_type": DeviceEntryType.SERVICE,
-        }
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, heatpump._id)},
+            name=CONF_NAME,
+            manufacturer="Remko",
+            model=CONF_VER,
+            entry_type=DeviceEntryType.SERVICE,
+        )
 
     @property
-    def name(self):
-        """Return the name of the switch."""
-        return self._name
-
-    @property
-    def should_poll(self):
-        """No need to poll. Coordinator notifies entity of updates."""
+    def should_poll(self) -> bool:
+        """No polling; updates are pushed via events."""
         return False
 
-    @final
     @property
-    def state(self) -> Literal["on", "off"]:
-        """Return the state of the sensor."""
-        return self._state
-
-    @property
-    def vp_reg(self):
-        """Return the device class of the sensor."""
+    def vp_reg(self) -> str:
+        """Return the device register id."""
         return self._vp_reg
 
     @property
-    def sorter(self):
-        """Return the state of the sensor."""
-        return self._sorter
-
-    @property
-    def icon(self):
-        """Return the icon of the sensor."""
-        return self._icon
-
-    @property
-    def device_class(self):
-        """Return the class of this device."""
+    def device_class(self) -> str:
+        """Return a device class string for this integration."""
         return f"{DOMAIN}_HeatPumpButton"
 
     async def async_press(self) -> None:
-        value = int(0)
-        await self._heatpump.send_mqtt_reg(self._idx, value)
+        """Handle button press by sending register write via MQTT."""
+        await self._heatpump.send_mqtt_reg(self._idx, 0)

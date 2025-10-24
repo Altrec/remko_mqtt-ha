@@ -1,12 +1,14 @@
 """Config flow"""
 
 import logging
+
 import voluptuous as vol
+
 from homeassistant import config_entries, exceptions
+from homeassistant.components.mqtt import valid_subscribe_topic
 from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import selector
-from homeassistant.components.mqtt import valid_subscribe_topic
 
 from .const import (
     DOMAIN,
@@ -15,7 +17,6 @@ from .const import (
     CONF_MQTT_DBG,
     CONF_LANGUAGE,
     CONF_FREQ,
-    CONF_TIMER,
     AVAILABLE_LANGUAGES,
 )
 
@@ -57,95 +58,106 @@ class DomainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ),
                 ),
                 vol.Required(CONF_FREQ, default=100): cv.positive_int,
-                vol.Required(CONF_TIMER, default=120): cv.positive_int,
                 vol.Required(CONF_MQTT_DBG, default=False): cv.boolean,
             }
         )
 
         if user_input is None:
             return self.async_show_form(step_id="user", data_schema=data_schema)
-        else:
-            error_schema = vol.Schema(
-                {
-                    vol.Required(CONF_ID, default=user_input[CONF_ID]): cv.string,
-                    vol.Required(
-                        CONF_MQTT_NODE, default=user_input[CONF_MQTT_NODE]
-                    ): cv.string,
-                    vol.Required(
-                        CONF_LANGUAGE, default=user_input[CONF_LANGUAGE]
-                    ): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=["en", "de"],
-                            mode=selector.SelectSelectorMode.DROPDOWN,
-                        ),
+
+        # Helper to normalise mqtt prefix
+        def _normalize_prefix(prefix: str) -> str:
+            if prefix.endswith("/#"):
+                prefix = prefix[:-2]
+            elif prefix.endswith("/"):
+                prefix = prefix[:-1]
+            return prefix
+
+        # Build error schema preserving supplied defaults
+        error_schema = vol.Schema(
+            {
+                vol.Required(CONF_ID, default=user_input.get(CONF_ID, "")): cv.string,
+                vol.Required(
+                    CONF_MQTT_NODE, default=user_input.get(CONF_MQTT_NODE, "")
+                ): cv.string,
+                vol.Required(
+                    CONF_LANGUAGE, default=user_input.get(CONF_LANGUAGE, "en")
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=["en", "de"],
+                        mode=selector.SelectSelectorMode.DROPDOWN,
                     ),
-                    vol.Required(
-                        CONF_FREQ, default=user_input[CONF_FREQ]
-                    ): cv.positive_int,
-                    vol.Required(
-                        CONF_TIMER, default=user_input[CONF_TIMER]
-                    ): cv.positive_int,
-                    vol.Required(
-                        CONF_MQTT_DBG, default=user_input[CONF_MQTT_DBG]
-                    ): cv.boolean,
-                }
+                ),
+                vol.Required(
+                    CONF_FREQ, default=user_input.get(CONF_FREQ, 100)
+                ): cv.positive_int,
+                vol.Required(
+                    CONF_MQTT_DBG, default=user_input.get(CONF_MQTT_DBG, False)
+                ): cv.boolean,
+            }
+        )
+
+        # Validate id / unique id
+        id_name = user_input.get(CONF_ID, "")
+        if not id_name or " " in id_name:
+            _LOGGER.debug("Invalid id provided: %s", id_name)
+            return self.async_show_form(
+                step_id="user", data_schema=error_schema, errors={"base": "invalid_id"}
+            )
+        # Use the provided id_name as the unique ID for this config entry
+        await self.async_set_unique_id(id_name)
+        # Abort if an entry with this unique ID already exists
+        try:
+            self._abort_if_unique_id_configured()
+        except Exception:
+            return self.async_abort(reason="already_configured")
+
+        # Validate mqtt prefix
+        prefix = user_input.get(CONF_MQTT_NODE, "")
+        try:
+            prefix = _normalize_prefix(prefix)
+            valid_subscribe_topic(f"{prefix}/#")
+        except (ValueError, TypeError) as ex:
+            _LOGGER.debug("Invalid mqtt node '%s': %s", prefix, ex)
+            return self.async_show_form(
+                step_id="user",
+                data_schema=error_schema,
+                errors={"base": "invalid_nodename"},
             )
 
-            try:
-                id_name = user_input[CONF_ID]
-                unique_id = f"{DOMAIN}_{id_name}"
-                await self.async_set_unique_id(unique_id)
-                self._abort_if_unique_id_configured()
-            except:
-                return self.async_show_form(
-                    step_id="user",
-                    data_schema=error_schema,
-                    errors={"base": "invalid_id"},
-                )
+        # Validate language
+        try:
+            lang = AVAILABLE_LANGUAGES.index(user_input.get(CONF_LANGUAGE, "en"))
+        except ValueError:
+            _LOGGER.debug(
+                "Invalid language provided: %s", user_input.get(CONF_LANGUAGE)
+            )
+            return self.async_show_form(
+                step_id="user",
+                data_schema=error_schema,
+                errors={"base": "invalid_language"},
+            )
 
-            try:
-                prefix = user_input[CONF_MQTT_NODE]
-                if prefix.endswith("/#"):
-                    prefix = prefix[:-2]
-                elif prefix.endswith("/"):
-                    prefix = prefix[:-1]
-                valid_subscribe_topic(f"{prefix}/#")
-            except:
-                return self.async_show_form(
-                    step_id="user",
-                    data_schema=error_schema,
-                    errors={"base": "invalid_nodename"},
-                )
-
-            try:
-                lang = AVAILABLE_LANGUAGES.index(user_input[CONF_LANGUAGE])
-
-            except:
-                return self.async_show_form(
-                    step_id="user",
-                    data_schema=error_schema,
-                    errors={"base": "invalid_language"},
-                )
-
-            try:
-                return self.async_create_entry(
-                    title=unique_id,
-                    data={
-                        CONF_ID: id_name,
-                        CONF_MQTT_NODE: prefix,
-                        CONF_LANGUAGE: user_input[CONF_LANGUAGE],
-                        CONF_MQTT_DBG: user_input[CONF_MQTT_DBG],
-                        CONF_FREQ: user_input[CONF_FREQ],
-                        CONF_TIMER: user_input[CONF_TIMER],
-                    },
-                    options={},
-                )
-            except:
-                return self.async_show_form(
-                    step_id="user",
-                    data_schema=error_schema,
-                    errors={"base": "creation_error"},
-                )
+        # All validations passed; create the entry
+        try:
+            return self.async_create_entry(
+                title=id_name,
+                data={
+                    CONF_ID: id_name,
+                    CONF_MQTT_NODE: prefix,
+                    CONF_LANGUAGE: user_input.get(CONF_LANGUAGE),
+                    CONF_MQTT_DBG: user_input.get(CONF_MQTT_DBG, False),
+                    CONF_FREQ: user_input.get(CONF_FREQ, 100),
+                },
+                options={},
+            )
+        except Exception as exc:  # defensive: surface creation failure
+            _LOGGER.exception("Failed to create config entry: %s", exc)
+            return self.async_show_form(
+                step_id="user",
+                data_schema=error_schema,
+                errors={"base": "creation_error"},
+            )
 
     @staticmethod
     @callback
@@ -190,9 +202,6 @@ class OptionsFlow(config_entries.OptionsFlow):
                     CONF_FREQ, default=self.config_entry.data.get(CONF_FREQ)
                 ): cv.positive_int,
                 vol.Required(
-                    CONF_TIMER, default=self.config_entry.data.get(CONF_TIMER)
-                ): cv.positive_int,
-                vol.Required(
                     CONF_MQTT_DBG, default=self.config_entry.data.get(CONF_MQTT_DBG)
                 ): cv.boolean,
             }
@@ -216,9 +225,6 @@ class OptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Required(
                         CONF_FREQ, default=user_input[CONF_FREQ]
-                    ): cv.positive_int,
-                    vol.Required(
-                        CONF_TIMER, default=self.config_entry.data.get(CONF_TIMER)
                     ): cv.positive_int,
                     vol.Required(
                         CONF_MQTT_DBG, default=user_input[CONF_MQTT_DBG]
@@ -267,7 +273,6 @@ class OptionsFlow(config_entries.OptionsFlow):
                     CONF_MQTT_NODE: prefix,
                     CONF_LANGUAGE: user_input[CONF_LANGUAGE],
                     CONF_FREQ: user_input[CONF_FREQ],
-                    CONF_TIMER: user_input[CONF_TIMER],
                     CONF_MQTT_DBG: user_input[CONF_MQTT_DBG],
                 }
 
@@ -277,7 +282,7 @@ class OptionsFlow(config_entries.OptionsFlow):
                     options={},
                 )
 
-                # This is the options entry, jeep it empty
+                # This is the options entry, keep it empty
                 return self.async_create_entry(title="", data={})
 
             except:

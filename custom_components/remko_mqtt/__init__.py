@@ -1,21 +1,18 @@
 """Component for Remko-MQTT support."""
 
 import logging
-from builtins import property
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.core import HomeAssistant, Event
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 
 from .const import (
     DOMAIN,
     CONF_ID,
 )
 
-from .heatpump import (
-    HeatPump,
-)
+from .heatpump import HeatPump
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,35 +27,31 @@ PLATFORMS = [
 ]
 
 
-async def async_setup(hass, config):
-    """Set up HASL integration"""
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Set up Remko‑MQTT integration."""
     _LOGGER.info("Set up Remko-MQTT integration")
-
-    if DOMAIN not in hass.data:
-        worker = hass.data.setdefault(DOMAIN, RemkoWorker(hass))
+    hass.data.setdefault(DOMAIN, RemkoWorker(hass))
     return True
 
 
-async def async_migrate_entry(hass, config_entry: ConfigEntry):
+async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Migrate configuration entry if needed"""
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up component from a config entry, config_entry contains data from config entry database."""
-    _LOGGER.info("Set up Remko-MQTT integration entry " + entry.data[CONF_ID])
+    """Set up component from a config entry."""
+    _LOGGER.info("Set up Remko-MQTT integration entry %s", entry.data[CONF_ID])
 
     # One common RemkoWorker serves all HeatPump objects
-    if DOMAIN in hass.data:
-        worker = hass.data[DOMAIN]
-    else:
-        worker = hass.data.setdefault(DOMAIN, RemkoWorker(hass))
+    worker = hass.data.setdefault(DOMAIN, RemkoWorker(hass))
 
     # add new heatpump to worker
     heatpump = await worker.add_entry(entry)
-    # Make config reload
-    rld = entry.add_update_listener(reload_entry)
-    entry.async_on_unload(rld)
+
+    # Register update listener and ensure it is cleaned up on unload
+    unload_update_listener = entry.add_update_listener(reload_entry)
+    entry.async_on_unload(unload_update_listener)
 
     async def handle_hass_started(_event: Event) -> None:
         await hass.async_create_task(heatpump.setup_mqtt())
@@ -71,53 +64,57 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     if hass.is_running:
+        # Immediately start MQTT setup if HA already running
         await hass.async_create_task(heatpump.setup_mqtt())
     else:
-        # Wait for hass to start and then add the input_* entities
+        # Wait for hass to start and then setup mqtt
         hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, handle_hass_started)
 
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        worker = hass.data[DOMAIN]
+        worker: RemkoWorker = hass.data[DOMAIN]
+        await hass.async_create_task(
+            worker.update_heatpump_entry(entry)
+        ) if False else None
         worker.remove_entry(entry)
         if worker.is_idle():
             # also remove worker if not used by any entry any more
-            del hass.data[DOMAIN]
+            hass.data.pop(DOMAIN, None)
 
     return unload_ok
 
 
 async def reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload config entry when options change."""
     if DOMAIN in hass.data:
-        worker = hass.data[DOMAIN]
+        worker: RemkoWorker = hass.data[DOMAIN]
         await worker.update_heatpump_entry(entry)
 
 
 class RemkoWorker:
-    """worker object. Stored in hass.data."""
+    """Worker object. Stored in hass.data."""
 
-    def __init__(self, hass: HomeAssistant):
+    def __init__(self, hass: HomeAssistant) -> None:
         """Initialize the instance."""
         self._hass = hass
-        self._heatpumps = {}
-        self._fetch_callback_listener = None
+        self._heatpumps: dict[str, Any] = {}
         self._worker = True
 
     @property
-    def worker(self):
+    def worker(self) -> bool:
         return self._worker
 
     @property
-    def heatpumps(self):
+    def heatpumps(self) -> dict:
         return self._heatpumps
 
-    async def add_entry(self, config_entry: ConfigEntry):
-        """Add entry."""
+    async def add_entry(self, config_entry: ConfigEntry) -> HeatPump:
+        """Add entry and create HeatPump instance."""
         heatpump = HeatPump(self._hass, config_entry)
         await heatpump.update_config(config_entry)
         self._heatpumps[config_entry.data[CONF_ID]] = heatpump
@@ -127,18 +124,22 @@ class RemkoWorker:
         )
         return heatpump
 
-    def remove_entry(self, config_entry: ConfigEntry):
-        """Remove entry."""
+    def remove_entry(self, config_entry: ConfigEntry) -> None:
+        """Remove entry if present."""
         self._hass.bus.fire(
             f"{DOMAIN}_changed",
             {"action": "remove", "heatpump": config_entry.data[CONF_ID]},
         )
-        self._heatpumps.pop(config_entry.data[CONF_ID])
+        # pop safely to avoid KeyError
+        self._heatpumps.pop(config_entry.data[CONF_ID], None)
 
-    async def update_heatpump_entry(self, config_entry: ConfigEntry):
-        heatpump = self._heatpumps[config_entry.data[CONF_ID]]
-        await heatpump.update_config(config_entry)
-        await self._hass.async_create_task(heatpump.setup_mqtt())
+    async def update_heatpump_entry(self, config_entry: ConfigEntry) -> None:
+        """Update heatpump configuration and restart MQTT setup."""
+        hp = self._heatpumps.get(config_entry.data[CONF_ID])
+        if not hp:
+            return
+        await hp.update_config(config_entry)
+        await self._hass.async_create_task(hp.setup_mqtt())
 
     def is_idle(self) -> bool:
         return not bool(self._heatpumps)

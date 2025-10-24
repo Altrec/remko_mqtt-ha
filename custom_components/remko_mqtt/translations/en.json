@@ -17,8 +17,7 @@
           "id_name": "Unique ID",
           "mqtt_node": "MQTT Nodename",
           "language": "Language",
-          "freq": "Frequency",
-          "timer": "Wait timer",
+          "freq": "Skipped MQTT messages",
           "remko_dbg": "Enable debug"
         },
         "title": "Heatpump config",
@@ -38,8 +37,7 @@
         "data": {
           "mqtt_node": "MQTT Nodename",
           "language": "Language",
-          "freq": "Frequency",
-          "timer": "Wait timer",
+          "freq": "Skipped MQTT messages",
           "remko_dbg": "Enable debug"
         },
         "title": "Options"
