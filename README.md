@@ -9,19 +9,21 @@ This integration allows you to control and monitor your Remko heatpump from Home
 
 # Prerequisite
 You need a configured MQTT connection to your heatpump. (Directly or via a broker like Mosquitto). Username and password are needed for the connection.
-The username is "0000000000000000"
-The password can be found in the smt.min.js file from the web interface.
-![smt.min.js](docs/smt.min.js.png)
+- The username is "0000000000000000"
+- The password can be found in the smt.min.js file from the web interface.
+- ![smt.min.js](docs/smt.min.js.png)
 
 # Steps to install
 The integration can be installed via [HACS](https://hacs.xyz/), or by manually copying the [`remko_mqtt`](https://github.com/Altrec/remko_mqtt-ha/tree/master/custom_components/) directory to Home Assistant's `config/custom_components/` directory.
 
 # Configuration
 This integration can be configured through the Home Assistant UI. From the Devices & Services page click 'Add Integration' and search for 'Remko MQTT'.
-Hint: The heatpump sends a message every second. To reduce log entries you can skip messages with the "Skipped MQTT messages" config option.
+
+_The heatpump sends a message every second. To reduce log entries you can skip messages with the 'Skipped MQTT messages' config option._
 
 ## Debugging
 Make sure you see proper mqtt messages from the heatpump in a MQTT-Explorer before setting up HA.
+
 Debug messages are not yet fully implemented.
 
 # Available data
@@ -37,6 +39,7 @@ Contributions are welcome! If you'd like to contribute, feel free to pick up any
 The naming, translation and grouping of registers can be improved, your input is appreciated. Most of it is in the [remko_regs.py](https://github.com/Altrec/remko_mqtt-ha/blob/master/custom_components/remko_mqtt/remko_regs.py)  
 
 All help improving the integration is appreciated!
+
 
 
 
