@@ -88,6 +88,8 @@ class HeatPump:
                                 self._hpstate[k] = int(self._hpstate[k], 16) * 100
                             if reg_id[self._id_reg[k]][1] == "sensor_en":
                                 self._hpstate[k] = int(self._hpstate[k], 16)
+                            if reg_id[self._id_reg[k]][1] == "sensor_counter":
+                                self._hpstate[k] = int(self._hpstate[k], 16)
                             if reg_id[self._id_reg[k]][1] in [
                                 "sensor_temp",
                                 "sensor_temp_inp",

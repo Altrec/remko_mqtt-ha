@@ -57,6 +57,7 @@ async def async_setup_entry(
                 "sensor",
                 "sensor_el",
                 "sensor_en",
+                "sensor_counter",
                 "sensor_input",
                 "sensor_mode",
                 "sensor_temp",
@@ -100,12 +101,13 @@ class HeatPumpSensor(SensorEntity):
         # self._attr_native_unit_of_measurement = unit_of_measurement
         if vp_type not in [
             "sensor_en",
+            "sensor_counter",
             "sensor_mode",
             "generated_sensor",
         ]:
             self._attr_state_class = SensorStateClass.MEASUREMENT
 
-        if vp_type == "sensor_en":
+        if vp_type in ["sensor_en", "sensor_counter"]:
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
 
         # set HA instance attributes directly (mostly don't use property)
@@ -122,6 +124,9 @@ class HeatPumpSensor(SensorEntity):
             self._unit = UnitOfTemperature.CELSIUS
         elif vp_type == "sensor_en":
             self._icon = "mdi:lightning-bolt"
+            self._unit = vp_unit
+        elif vp_type == "sensor_counter":
+            self._icon = "mdi:counter"
             self._unit = vp_unit
         else:
             if vp_unit:
@@ -203,4 +208,12 @@ class HeatPumpSensor(SensorEntity):
     @property
     def device_class(self):
         """Return the class of this device."""
+        # Propper device class needed for e.g. energy dashboard
+        if self._unit == UnitOfTemperature.CELSIUS:
+            return "temperature"
+        if self._unit == "kWh":
+            return "energy"
+        if self._unit == "W":
+            return "power"
+
         return f"{DOMAIN}_HeatPumpSensor"
