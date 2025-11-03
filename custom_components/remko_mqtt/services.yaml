@@ -1,0 +1,36 @@
+update_timeprogram:
+  name: Update time program
+  description: Aktualisiere das Heizungs-Zeitprogramm (Remko Wärmepumpe)
+  fields:
+    entity_id:
+      name: Entity ID
+      description: Die Entity ID des Zeitprogramm Sensors
+      required: true
+      example: "sensor.remko_mqtt_timeprogram_dhw_a"
+      selector:
+        entity:
+          domain: sensor
+          filter:
+            - integration: remko_mqtt
+    timeprogram:
+      name: Time program
+      description: Das Zeitprogramm als Dictionary
+      required: true
+      example:
+        mon:
+          timeslots:
+            - start: "08:00"
+              stop: "12:00"
+              'on': true
+        tue:
+          timeslots: []
+        wed:
+          timeslots: []
+        thu:
+          timeslots: []
+        fri:
+          timeslots: []
+        sat:
+          timeslots: []
+        sun:
+          timeslots: []

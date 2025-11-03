@@ -9,9 +9,12 @@ FIELD_MAXVALUE = 4
 reg_id = {
     #  reg_id: ['reg#', 'type', 'unit', 'min', 'max'],
     "dhw_opmode": ["1079", "select_input", "", 0, 16],
+    "timeprogram_dhw_a": ["1081", "timeprogram", "", "", ""],
     "water_temp_req": ["1082", "sensor_temp_inp", "ºC", 20.0, 60.0],
     "absence_mode": ["1893", "switch", "", "", ""],
     "party_mode": ["1894", "switch", "", "", ""],
+    "timeprogram_dhw_b": ["1939", "timeprogram", "", "", ""],
+    "timeprogram_dhw_c": ["1940", "timeprogram", "", "", ""],
     "main_mode": ["1951", "select_input", "", "", ""],
     "heating_circ_mode": ["1972", "switch", "", "", ""],
     "fixed_temp_req": ["1974", "sensor_temp_inp", "ºC", 20.0, 60.0],
@@ -90,4 +93,7 @@ id_names = {
     "opmode14": ["Blocking signal", "Sperrsignal"],
     "opmode15": ["Hygiene function", "Hygienefunktion"],
     "opmode16": ["Silent mode", "Silent Modus"],
+    "timeprogram_dhw_a": ["Time program A", "Zeitprogramm A"],
+    "timeprogram_dhw_b": ["Time program B", "Zeitprogramm B"],
+    "timeprogram_dhw_c": ["Time program C", "Zeitprogramm C"],
 }

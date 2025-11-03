@@ -1,5 +1,3 @@
-"""Component for Remko-MQTT support."""
-
 import logging
 from typing import Any
 
@@ -69,6 +67,46 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     else:
         # Wait for hass to start and then setup mqtt
         hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, handle_hass_started)
+
+    async def handle_update_timeprogram(service_call):
+        try:
+            entity_id = service_call.data.get("entity_id")
+            timeprogram = service_call.data.get("timeprogram")
+
+            _LOGGER.debug(f"Service called: entity_id={entity_id}")
+
+            if not entity_id or not timeprogram:
+                _LOGGER.error("Missing data")
+                return
+
+            entity = hass.states.get(entity_id)
+            if not entity:
+                _LOGGER.error(f"Entity not found: {entity_id}")
+                return
+
+            new_attrs = dict(entity.attributes)
+            new_attrs["timeprogram"] = timeprogram
+
+            event_name = f"{DOMAIN}_timeprogram_updated"
+
+            hass.bus.async_fire(
+                event_name,
+                {
+                    "entity_id": entity_id,
+                    "timeprogram": timeprogram,
+                    "attributes": new_attrs,
+                },
+            )
+
+        except Exception as e:
+            _LOGGER.error(f"Error: {e}", exc_info=True)
+
+    # Registriere den Custom Service
+    hass.services.async_register(
+        DOMAIN, "update_timeprogram", handle_update_timeprogram, schema=None
+    )
+
+    _LOGGER.info(f"Registered service: {DOMAIN}.update_timeprogram")
 
     return True
 

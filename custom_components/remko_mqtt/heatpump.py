@@ -50,6 +50,8 @@ from .remko_regs import (
     reg_id,
 )
 
+from .timeprogram_converter import RemkoTimeProgramConverter
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -86,6 +88,12 @@ class HeatPump:
                             self._hpstate[k] = json_dict[k]
                             if reg_id[self._id_reg[k]][1] == "switch":
                                 self._hpstate[k] = int(self._hpstate[k], 16) > 0
+                            if reg_id[self._id_reg[k]][1] == "timeprogram":
+                                self._hpstate[k] = (
+                                    RemkoTimeProgramConverter.hex_to_timeprogram(
+                                        self._hpstate[k]
+                                    )
+                                )
                             if reg_id[self._id_reg[k]][1] == "sensor_el":
                                 self._hpstate[k] = int(self._hpstate[k], 16) * 100
                             if reg_id[self._id_reg[k]][1] == "sensor_en":
@@ -284,7 +292,8 @@ class HeatPump:
         reg_type = reg_id[register_id][1]
         _LOGGER.debug("register:[%s]", register)
 
-        if not isinstance(value, (int, float)) or value is None:
+        # if not isinstance(value, (int, float)) or value is None:
+        if value is None:
             _LOGGER.error("No MQTT message sent due to missing value:[%s]", value)
             return
 
@@ -292,6 +301,9 @@ class HeatPump:
             _LOGGER.error("No MQTT message sent due to unknown register:[%s]", register)
             return
 
+        if reg_type == "timeprogram":
+            topic = self._cmd_topic
+            payload = json.dumps({"values": {register: value}})
         if reg_type == "sensor_temp_inp":
             topic = self._cmd_topic
             hex_str = hex(int(value * 10)).upper()
@@ -310,7 +322,7 @@ class HeatPump:
             payload = json.dumps({"values": {register: hex_str}})
 
         _LOGGER.debug("topic:[%s]", topic)
-        _LOGGER.debug("payload:[%s]", payload)
+        _LOGGER.info("payload:[%s]", payload)
         self._hass.async_create_task(
             mqtt.async_publish(self._hass, topic, payload, qos=2, retain=False)
         )

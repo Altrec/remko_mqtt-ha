@@ -7,5 +7,5 @@
   "documentation": "https://github.com/Altrec/remko_mqtt-ha",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/Altrec/remko_mqtt-ha/issues",
-  "version": "0.7.0"
+  "version": "0.7.5"
 }
