@@ -33,6 +33,8 @@ bridge_protocol_version mqttv311
 # Steps to install
 The integration can be installed via [HACS](https://hacs.xyz/), or by manually copying the [`remko_mqtt`](https://github.com/Altrec/remko_mqtt-ha/tree/master/custom_components/) directory to Home Assistant's `config/custom_components/` directory.
 
+There's a [`custom card`](https://github.com/Altrec/remko_mqtt-ha/blob/master/remko_timeprogram_card.js) available to edit the heatpump's time programs (dhw and hc) which has to be added manually.
+
 # Configuration
 This integration can be configured through the Home Assistant UI. From the Devices & Services page click 'Add Integration' and search for 'Remko MQTT'.
 
