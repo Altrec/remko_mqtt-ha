@@ -8,6 +8,7 @@ class RemkoTimeprogramCard extends HTMLElement {
     this._new_slots = {};
     this._new_time_ranges = {};
     this._collapsed = false;
+    this._localize = null;
   }
 
   setConfig(config) {
@@ -15,6 +16,21 @@ class RemkoTimeprogramCard extends HTMLElement {
   }
 
   set hass(hass) {
+    if (!this._localize) {
+      this._localize = new Localization(hass);
+    } else {
+      this._localize.language = hass?.language || this._localize.language;
+    }
+
+    if (this._hass && this.config?.entity) {
+      const oldState = this._hass.states[this.config.entity];
+      const newState = hass.states[this.config.entity];
+
+      if (oldState !== newState) {
+        this._timeprogram = null;
+      }
+    }
+
     this._hass = hass;
     this.render();
   }
@@ -225,7 +241,7 @@ class RemkoTimeprogramCard extends HTMLElement {
         <div class="header">
           <div class="header-title">
             <h2>${cardTitle}</h2>
-            ${this._dirty ? `<span style="color: var(--warning-color, orange); font-size: 14px;">● Änderungen</span>` : ""}
+            ${this._dirty ? `<span style="color: var(--warning-color, orange); font-size: 14px;">● ${this._localize._("cancel")}</span>` : ""}
           </div>
           <button class="collapse-btn ${this._collapsed ? 'collapsed' : ''}" id="collapse-btn">${this._collapsed ? '▼' : '▲'}</button>
         </div>
@@ -235,8 +251,8 @@ class RemkoTimeprogramCard extends HTMLElement {
         </div>
 
         <div class="footer">
-          <ha-button variant="brand" appearance="plain" id="cancel">Abbrechen</ha-button>
-          <ha-button variant="brand" appearance="accent" id="save">Speichern</ha-button>
+          <ha-button variant="brand" appearance="plain" id="cancel">${this._localize._("cancel")}</ha-button>
+          <ha-button variant="brand" appearance="accent" id="save">${this._localize._("save")}</ha-button>
         </div>
       </ha-card>
     `;
@@ -270,8 +286,8 @@ class RemkoTimeprogramCard extends HTMLElement {
   }
 
   renderDays() {
-    const days = { mon: "Montag", tue: "Dienstag", wed: "Mittwoch", thu: "Donnerstag", fri: "Freitag", sat: "Samstag", sun: "Sonntag" };
-    return Object.entries(days)
+    const dayNames = this._localize.getDayNames();
+    return Object.entries(dayNames)
       .map(([key, label]) => {
         const data = this._timeprogram[key] || { timeslots: [] };
         const sorted = (data.timeslots || []).slice().sort((a, b) => this.timeToMinutes(a.start) - this.timeToMinutes(b.start));
@@ -292,16 +308,16 @@ class RemkoTimeprogramCard extends HTMLElement {
                     return `
                       <div class="timeslot ${borderClass}">
                         <div class="timeslot-content">
-                          <span class="timeslot-time">${ts.start} - ${ts.stop}${isNew ? ' 🟢 NEU' : ''}</span>
+                          <span class="timeslot-time">${ts.start} - ${ts.stop}${isNew ? ' 🟢 ' + this._localize._("new") : ''}</span>
                         </div>
                         <div class="timeslot-actions">
-                          <span class="status ${ts.on ? 'on' : 'off'}">${ts.on ? "ON" : "OFF"}</span>
+                          <span class="status ${ts.on ? 'on' : 'off'}">${ts.on ? this._localize._("on") : this._localize._("off")}</span>
                           <ha-icon icon="mdi:delete-outline" class="delete" data-day="${key}" data-index="${i}"></ha-icon>
                         </div>
                       </div>
                     `;
                   }).join("")
-                : '<div style="color: var(--secondary-text-color, #999); font-size: 13px;">Keine Zeitabschnitte</div>'
+                : '<div style="color: var(--secondary-text-color, #999); font-size: 13px;">' + this._localize._("noData") + '</div>'
               }
             </div>
           </div>`;
@@ -327,10 +343,9 @@ class RemkoTimeprogramCard extends HTMLElement {
     return h * 4 + m / 15;
   }
 
-  getTimeFromSlot(slot) {
-    const hours = Math.floor(slot / 4);
-    const minutes = (slot % 4) * 15;
-    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  timeToMinutes(t) {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
   }
 
   isTimeslotNew(day, slot) {
@@ -350,15 +365,10 @@ class RemkoTimeprogramCard extends HTMLElement {
     }
   }
 
-  timeToMinutes(t) {
-    const [h, m] = t.split(":").map(Number);
-    return h * 60 + m;
-  }
-
   async addTimeslot(day) {
-    const start = await this.showTimeDialog("Startzeit wählen", "08:00");
+    const start = await this.showTimeDialog(this._localize._("selectStartTime"), "08:00");
     if (!start) return;
-    const stop = await this.showTimeDialog("Endzeit wählen", "12:00", start);
+    const stop = await this.showTimeDialog(this._localize._("selectEndTime"), "12:00", start);
     if (!stop) return;
     const on = await this.showOnOffDialog();
     if (on === null) return;
@@ -594,12 +604,11 @@ class RemkoTimeprogramCard extends HTMLElement {
           </div>
         </div>
         <div class="button-row">
-          <ha-button variant="brand" appearance="plain" id="cancel">Abbrechen</ha-button>
+          <ha-button variant="brand" appearance="plain" id="cancel">${this._localize._("cancel")}</ha-button>
           <ha-button variant="brand" appearance="accent" id="ok">OK</ha-button>
         </div>
       `;
       dialog.appendChild(wrapper);
-      dialog.setAttribute("slot", "primaryAction");
       document.body.appendChild(dialog);
 
       const hourInput = wrapper.querySelector("#hour-input");
@@ -615,18 +624,15 @@ class RemkoTimeprogramCard extends HTMLElement {
         const currentTimeMinutes = currentHour * 60 + currentMinute;
         const minTimeMinutes = minHour * 60 + minMinute;
 
-        // Disable hour down if it would make time <= minStart
         const oneHourBack = (currentHour - 1 + 24) % 24;
         const oneHourBackMinutes = oneHourBack * 60 + currentMinute;
         hourDownBtn.disabled = minStart && oneHourBackMinutes <= minTimeMinutes;
 
-        // Disable minute down if it would make time <= minStart
         let oneMinuteBackMinutes = currentTimeMinutes - 15;
         if (oneMinuteBackMinutes < 0) oneMinuteBackMinutes += 24 * 60;
         minuteDownBtn.disabled = minStart && oneMinuteBackMinutes <= minTimeMinutes;
       };
 
-      // Hour up/down
       hourUpBtn.addEventListener("click", () => {
         let h = parseInt(hourInput.value) || 0;
         h = (h + 1) % 24;
@@ -641,7 +647,6 @@ class RemkoTimeprogramCard extends HTMLElement {
         updateButtonStates();
       });
 
-      // Minute up/down
       minuteUpBtn.addEventListener("click", () => {
         let m = parseInt(minuteInput.value) || 0;
         if (m === 45) {
@@ -670,11 +675,8 @@ class RemkoTimeprogramCard extends HTMLElement {
         updateButtonStates();
       });
 
-      // Input change listeners
       hourInput.addEventListener("change", updateButtonStates);
       minuteInput.addEventListener("change", updateButtonStates);
-
-      // Initialize button states
       updateButtonStates();
 
       wrapper.querySelector("#ok").addEventListener("click", () => {
@@ -682,7 +684,7 @@ class RemkoTimeprogramCard extends HTMLElement {
         const m = minuteInput.value;
         const time = `${h}:${m}`;
         if (minStart && this.timeToMinutes(time) <= this.timeToMinutes(minStart)) {
-          alert("Endzeit muss nach der Startzeit liegen!");
+          alert(this._localize._("mustAfter"));
           return;
         }
         dialog.close();
@@ -704,7 +706,7 @@ class RemkoTimeprogramCard extends HTMLElement {
     return new Promise(resolve => {
       const dialog = document.createElement("ha-dialog");
       dialog.open = true;
-      dialog.heading = "Status wählen";
+      dialog.heading = this._localize._("selectStatus");
       dialog.style.setProperty("--mdc-dialog-min-width", "300px");
       dialog.style.setProperty("--mdc-dialog-max-width", "330px");
       dialog.style.setProperty("--mdc-dialog-max-height", "280px");
@@ -753,16 +755,15 @@ class RemkoTimeprogramCard extends HTMLElement {
           }
         </style>
         <div class="status-options">
-          <button class="status-button on" id="btn-on">AN</button>
-          <button class="status-button off" id="btn-off">AUS</button>
+          <button class="status-button on" id="btn-on">${this._localize._("on")}</button>
+          <button class="status-button off" id="btn-off">${this._localize._("off")}</button>
         </div>
         <div class="button-row">
-          <ha-button variant="brand" appearance="plain" id="cancel">Abbrechen</ha-button>
+          <ha-button variant="brand" appearance="plain" id="cancel">${this._localize._("cancel")}</ha-button>
           <ha-button variant="brand" appearance="accent" id="ok">OK</ha-button>
         </div>
       `;
       dialog.appendChild(wrapper);
-      dialog.setAttribute("slot", "primaryAction");
       document.body.appendChild(dialog);
 
       wrapper.querySelector("#btn-on").addEventListener("click", () => {
@@ -777,7 +778,7 @@ class RemkoTimeprogramCard extends HTMLElement {
 
       wrapper.querySelector("#ok").addEventListener("click", () => {
         dialog.close();
-        resolve(true); // Default to "on"
+        resolve(true);
       });
 
       wrapper.querySelector("#cancel").addEventListener("click", () => {
@@ -840,6 +841,212 @@ class RemkoTimeprogramCard extends HTMLElement {
       title: "Remko Heizungs-Zeitplan"
     };
   }
+
+  static getConfigForm() {
+    return {
+      schema: [
+        {
+          name: "entity",
+          required: true,
+          selector: {
+            entity: {
+              domain: ["sensor", "switch", "select", "input_text"],
+              multiple: false
+            }
+          }
+        },
+        {
+          name: "title",
+          selector: {
+            text: {
+              multiline: false
+            }
+          }
+        }
+      ],
+      computeLabel: (schema) => {
+        const localize = new Localization({ language: "en" });
+        switch (schema.name) {
+          case "entity":
+            return localize._("entity");
+          case "title":
+            return localize._("title");
+          default:
+            return undefined;
+        }
+      }
+    };
+  }
+}
+
+const TRANSLATIONS = {
+  en: {
+    entity: "Entity (required)",
+    title: "Card title (optional)",
+    noData: "No time slots",
+    monday: "Monday",
+    tuesday: "Tuesday",
+    wednesday: "Wednesday",
+    thursday: "Thursday",
+    friday: "Friday",
+    saturday: "Saturday",
+    sunday: "Sunday",
+    cancel: "Cancel",
+    save: "Save",
+    on: "ON",
+    off: "OFF",
+    new: "NEW",
+    selectStartTime: "Select start time",
+    selectEndTime: "Select end time",
+    selectStatus: "Select status",
+    startTime: "Start time",
+    endTime: "End time",
+    mustAfter: "End time must be after start time!",
+  },
+  de: {
+    entity: "Entität (erforderlich)",
+    title: "Kartentitel (optional)",
+    noData: "Keine Zeitabschnitte",
+    monday: "Montag",
+    tuesday: "Dienstag",
+    wednesday: "Mittwoch",
+    thursday: "Donnerstag",
+    friday: "Freitag",
+    saturday: "Samstag",
+    sunday: "Sonntag",
+    cancel: "Abbrechen",
+    save: "Speichern",
+    on: "AN",
+    off: "AUS",
+    new: "NEU",
+    selectStartTime: "Startzeit wählen",
+    selectEndTime: "Endzeit wählen",
+    selectStatus: "Status wählen",
+    startTime: "Startzeit",
+    endTime: "Endzeit",
+    mustAfter: "Endzeit muss nach der Startzeit liegen!",
+  },
+  fr: {
+    entity: "Entité (obligatoire)",
+    title: "Titre de la carte (optionnel)",
+    noData: "Aucun créneau horaire",
+    monday: "Lundi",
+    tuesday: "Mardi",
+    wednesday: "Mercredi",
+    thursday: "Jeudi",
+    friday: "Vendredi",
+    saturday: "Samedi",
+    sunday: "Dimanche",
+    cancel: "Annuler",
+    save: "Enregistrer",
+    on: "ON",
+    off: "OFF",
+    new: "NOUVEAU",
+    selectStartTime: "Sélectionner l'heure de début",
+    selectEndTime: "Sélectionner l'heure de fin",
+    selectStatus: "Sélectionner le statut",
+    startTime: "Heure de début",
+    endTime: "Heure de fin",
+    mustAfter: "L'heure de fin doit être après l'heure de début!",
+  },
+  es: {
+    entity: "Entidad (requerida)",
+    title: "Título de la tarjeta (opcional)",
+    noData: "Sin franjas horarias",
+    monday: "Lunes",
+    tuesday: "Martes",
+    wednesday: "Miércoles",
+    thursday: "Jueves",
+    friday: "Viernes",
+    saturday: "Sábado",
+    sunday: "Domingo",
+    cancel: "Cancelar",
+    save: "Guardar",
+    on: "ON",
+    off: "OFF",
+    new: "NUEVO",
+    selectStartTime: "Seleccionar hora de inicio",
+    selectEndTime: "Seleccionar hora de finalización",
+    selectStatus: "Seleccionar estado",
+    startTime: "Hora de inicio",
+    endTime: "Hora de finalización",
+    mustAfter: "¡La hora de fin debe ser posterior a la hora de inicio!",
+  },
+  nl: {
+    entity: "Entiteit (vereist)",
+    title: "Kaarttitel (optioneel)",
+    noData: "Geen tijdsleuven",
+    monday: "Maandag",
+    tuesday: "Dinsdag",
+    wednesday: "Woensdag",
+    thursday: "Donderdag",
+    friday: "Vrijdag",
+    saturday: "Zaterdag",
+    sunday: "Zondag",
+    cancel: "Annuleren",
+    save: "Opslaan",
+    on: "AAN",
+    off: "UIT",
+    new: "NIEUW",
+    selectStartTime: "Begintijd selecteren",
+    selectEndTime: "Eindtijd selecteren",
+    selectStatus: "Status selecteren",
+    startTime: "Begintijd",
+    endTime: "Eindtijd",
+    mustAfter: "Eindtijd moet na starttijd liggen!",
+  },
+};
+
+class Localization {
+  constructor(hass) {
+    this.hass = hass;
+    this.language = hass?.language || navigator.language?.split("-")[0] || "en";
+  }
+
+  t(key, fallback = key) {
+    const lang = this.language;
+    const translations = TRANSLATIONS[lang];
+
+    if (!translations) {
+      return TRANSLATIONS.en[key] || fallback;
+    }
+
+    return translations[key] || TRANSLATIONS.en[key] || fallback;
+  }
+
+  _(key) {
+    return this.t(key);
+  }
+
+  setLanguage(lang) {
+    if (TRANSLATIONS[lang]) {
+      this.language = lang;
+    }
+  }
+
+  getSupportedLanguages() {
+    return Object.keys(TRANSLATIONS);
+  }
+
+  getDayNames() {
+    return {
+      mon: this._("monday"),
+      tue: this._("tuesday"),
+      wed: this._("wednesday"),
+      thu: this._("thursday"),
+      fri: this._("friday"),
+      sat: this._("saturday"),
+      sun: this._("sunday"),
+    };
+  }
 }
 
 customElements.define("remko-timeprogram-card", RemkoTimeprogramCard);
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: "remko-timeprogram-card",
+  name: "Remko time program",
+  preview: true,
+  description: "Card for Remko time programs",
+});

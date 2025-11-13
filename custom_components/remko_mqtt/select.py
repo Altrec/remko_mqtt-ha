@@ -52,11 +52,14 @@ async def async_setup_entry(
         vp_reg = meta[FIELD_REGNUM]
         vp_type = meta[FIELD_REGTYPE]
 
-        # build options more compactly
         if key == "main_mode":
             vp_options = [id_names[f"mode{i}"][heatpump._langid] for i in range(1, 5)]
         elif key == "dhw_opmode":
             vp_options = [id_names[f"dhwopmode{i}"][heatpump._langid] for i in range(4)]
+        elif key == "timemode":
+            vp_options = [id_names[f"timemode{i}"][heatpump._langid] for i in range(2)]
+        elif key == "user_profile":
+            vp_options = ["A", "B", "C"]
         else:
             vp_options = []
 
