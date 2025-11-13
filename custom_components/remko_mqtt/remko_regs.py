@@ -90,8 +90,6 @@ id_names = {
     "dhwopmode1": ["Automatic eco", "Automatik Eco"],
     "dhwopmode2": ["Solar/PV only", "Nur Solar/PV"],
     "dhwopmode3": ["Off", "Aus"],
-    "timemode0": ["Reduction", "Absenkung"],
-    "timemode1": ["Deactivation", "Abschaltung"],
     "mode1": ["Auto", "Auto"],
     "mode2": ["Heating", "Heizen"],
     "mode3": ["Standby", "Standby"],
@@ -112,4 +110,9 @@ id_names = {
     "opmode14": ["Blocking signal", "Sperrsignal"],
     "opmode15": ["Hygiene function", "Hygienefunktion"],
     "opmode16": ["Silent mode", "Silent Modus"],
+    "timemode0": ["Reduction", "Absenkung"],
+    "timemode1": ["Deactivation", "Abschaltung"],
+    "user_profile0": ["Profile A", "Profil A"],
+    "user_profile1": ["Profile B", "Profil B"],
+    "user_profile2": ["Profile C", "Profil C"],
 }

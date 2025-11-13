@@ -59,7 +59,9 @@ async def async_setup_entry(
         elif key == "timemode":
             vp_options = [id_names[f"timemode{i}"][heatpump._langid] for i in range(2)]
         elif key == "user_profile":
-            vp_options = ["A", "B", "C"]
+            vp_options = [
+                id_names[f"user_profile{i}"][heatpump._langid] for i in range(3)
+            ]
         else:
             vp_options = []
 

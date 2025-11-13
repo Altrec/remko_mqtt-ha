@@ -116,6 +116,10 @@ class HeatPump:
                                     mode = f"mode{int(json_dict[k], 16)}"
                                 elif self._id_reg[k] == "dhw_opmode":
                                     mode = f"dhwopmode{int(json_dict[k], 16)}"
+                                elif self._id_reg[k] == "timemode":
+                                    mode = f"timemode{int(json_dict[k], 16)}"
+                                elif self._id_reg[k] == "user_profile":
+                                    mode = f"user_profile{int(json_dict[k], 16)}"
                                 self._hpstate[k] = id_names[mode][self._langid]
 
                     self._hpstate["communication_status"] = json_dict.get(
