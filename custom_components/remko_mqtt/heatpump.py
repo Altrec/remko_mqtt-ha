@@ -179,14 +179,39 @@ class HeatPump:
 
         @callback
         def message_received(msg):
-            future.set_result(msg.payload)
+            # Check if future is still pending before setting result
+            if not future.done() and not future.cancelled():
+                try:
+                    future.set_result(msg.payload)
+                except (asyncio.InvalidStateError, RuntimeError) as e:
+                    _LOGGER.warning("Could not set future result (late message): %s", e)
+            else:
+                _LOGGER.debug(
+                    "Future already resolved/cancelled, ignoring late message"
+                )
 
         unsub = await mqtt.async_subscribe(
             self._hass, self._data_topic, message_received
         )
 
         try:
-            reply = await future
+            # Wait for reply with timeout to prevent bootstrap hanging
+            reply = await asyncio.wait_for(future, timeout=30.0)
+        except asyncio.TimeoutError:
+            _LOGGER.error(
+                "Timeout waiting for capabilities response from heatpump. "
+                "Check: 1) MQTT broker running, 2) Heatpump connected, 3) Correct MQTT node"
+            )
+            unsub()
+            return False
+        except asyncio.CancelledError:
+            _LOGGER.warning("Capability check was cancelled (likely during shutdown)")
+            unsub()
+            raise
+        except Exception as e:
+            _LOGGER.exception("Unexpected error during capability check: %s", e)
+            unsub()
+            return False
         finally:
             unsub()
 
@@ -195,6 +220,8 @@ class HeatPump:
 
         for k in json_dict:
             self._capabilites.append(k)
+
+        return True
 
     async def setup_mqtt(self):
         self._unsub_data = await mqtt.async_subscribe(
