@@ -44,7 +44,6 @@ reg_id = {
     "energy_environmental": ["5600", "sensor_en", "kWh", "", ""],
     "dhw_heating": ["5693", "action", "", "", ""],
     "compressor_starts": ["5822", "sensor_counter", "", 0, 65535],
-    "communication_status": ["communication_status", "generated_sensor", "", "", ""],
 }
 
 # Translation dictionary

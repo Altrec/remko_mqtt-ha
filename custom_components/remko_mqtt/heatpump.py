@@ -70,41 +70,43 @@ class HeatPump:
             "%s: message.payload:[%s] [%s]", self._id, message.topic, message.payload
         )
         try:
-            # In case the heatpump is controlled from another client don't send query_list
-            if "CLIENT2HOST" in message.topic:
-                if "CLIENT_ID" in message.payload:
-                    self._last_time = time.time()
-                    _LOGGER.debug("Message from other client")
-            elif self._mqtt_counter == self._freq:
-                json_dict = json.loads(message.payload)
-                json_dict = json_dict.get("values")
+            if self._mqtt_counter >= self._freq:
+                # In case the heat pump is controlled from another client don't send query_list
+                if message.topic == self._cmd_topic:
+                    if "CLIENT_ID" in message.payload:
+                        _LOGGER.debug(
+                            "Message from other client, not sending query_list for 30 seconds"
+                        )
+                        self._keep_alive_delay = time.time()
                 if message.topic == self._data_topic:
+                    self._last_time = time.time()
+                    json_dict = json.loads(message.payload)
+                    json_dict = json_dict.get("values")
                     for k in json_dict:
                         # Map incomming registers to named settings based on id_reg (Remko_regs)
                         if k in self._id_reg:
                             _LOGGER.debug("[%s] [%s] [%s]", self._id, k, json_dict[k])
 
                             # Internal mapping of Remko_MQTT regs, used to create update events
-                            self._hpstate[k] = json_dict[k]
                             if reg_id[self._id_reg[k]][1] == "switch":
-                                self._hpstate[k] = int(self._hpstate[k], 16) > 0
+                                self._hpstate[k] = int(json_dict[k], 16) > 0
                             if reg_id[self._id_reg[k]][1] == "timeprogram":
                                 self._hpstate[k] = (
                                     RemkoTimeProgramConverter.hex_to_timeprogram(
-                                        self._hpstate[k]
+                                        json_dict[k]
                                     )
                                 )
                             if reg_id[self._id_reg[k]][1] == "sensor_el":
-                                self._hpstate[k] = int(self._hpstate[k], 16) * 100
+                                self._hpstate[k] = int(json_dict[k], 16) * 100
                             if reg_id[self._id_reg[k]][1] == "sensor_en":
-                                self._hpstate[k] = int(self._hpstate[k], 16)
+                                self._hpstate[k] = int(json_dict[k], 16)
                             if reg_id[self._id_reg[k]][1] == "sensor_counter":
-                                self._hpstate[k] = int(self._hpstate[k], 16)
+                                self._hpstate[k] = int(json_dict[k], 16)
                             if reg_id[self._id_reg[k]][1] in [
                                 "sensor_temp",
                                 "sensor_temp_inp",
                             ]:
-                                raw = int(self._hpstate[k], 16)
+                                raw = int(json_dict[k], 16)
                                 self._hpstate[k] = (
                                     -(raw & 0x8000) | (raw & 0x7FFF)
                                 ) / 10
@@ -122,10 +124,6 @@ class HeatPump:
                                     mode = f"user_profile{int(json_dict[k], 16)}"
                                 self._hpstate[k] = id_names[mode][self._langid]
 
-                    self._hpstate["communication_status"] = json_dict.get(
-                        "vp_read", "Ok"
-                    )
-
                     self._hass.bus.fire(
                         self._domain + "_" + self._id + "_msg_rec_event", {}
                     )
@@ -134,7 +132,9 @@ class HeatPump:
                     self._mqtt_counter = 0
 
                 else:
-                    _LOGGER.error("JSON result was not from Remko-mqtt")
+                    _LOGGER.debug(
+                        "JSON result was not from Remko-mqtt: %s", message.payload
+                    )
             else:
                 self._mqtt_counter += 1
         except ValueError:
@@ -154,6 +154,8 @@ class HeatPump:
         self._unsub_cmd = None
         self._freq = entry.data[CONF_FREQ]
         self._last_time = time.time()
+        self._last_keep_alive = time.time() - 30
+        self._keep_alive_delay = time.time() - 30
         self._mqtt_counter = entry.data[CONF_FREQ]
 
         # Create reverse lookup dictionary (id_reg->reg_number)
@@ -202,15 +204,12 @@ class HeatPump:
                 "Timeout waiting for capabilities response from heatpump. "
                 "Check: 1) MQTT broker running, 2) Heatpump connected, 3) Correct MQTT node"
             )
-            unsub()
             return False
         except asyncio.CancelledError:
             _LOGGER.warning("Capability check was cancelled (likely during shutdown)")
-            unsub()
             raise
         except Exception as e:
             _LOGGER.exception("Unexpected error during capability check: %s", e)
-            unsub()
             return False
         finally:
             unsub()
@@ -364,22 +363,26 @@ class HeatPump:
 
     async def mqtt_keep_alive(self) -> None:
         """Heatpump sends MQTT messages only when triggered."""
+        # Limit keep alive message even if self._freq is set to 1
+        if time.time() - self._keep_alive_delay >= 30:
+            self._keep_alive_delay = time.time()
+            topic = self._cmd_topic
+            value = "true"
+            if reg_id:
+                query_list = (
+                    "["
+                    + ",".join(entry[FIELD_REGNUM] for entry in reg_id.values())
+                    + "]"
+                )
+            else:
+                query_list = "[]"
+            payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list})
 
-        topic = self._cmd_topic
-        value = "true"
-        if reg_id:
-            query_list = (
-                "[" + ",".join(entry[FIELD_REGNUM] for entry in reg_id.values()) + "]"
+            _LOGGER.debug("topic:[%s]", topic)
+            _LOGGER.debug("payload:[%s]", payload)
+            self._hass.async_create_task(
+                mqtt.async_publish(self._hass, topic, payload, qos=2, retain=False)
             )
-        else:
-            query_list = "[]"
-        payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list})
-
-        _LOGGER.debug("topic:[%s]", topic)
-        _LOGGER.debug("payload:[%s]", payload)
-        self._hass.async_create_task(
-            mqtt.async_publish(self._hass, topic, payload, qos=2, retain=False)
-        )
 
     async def watchdog(self) -> None:
         """Register a periodic checker that triggers mqtt_keep_alive when no messages arrive."""
