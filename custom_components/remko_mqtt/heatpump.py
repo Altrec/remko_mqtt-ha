@@ -308,7 +308,7 @@ class HeatPump:
     def get_value(self, item):
         """Get value for sensor."""
         res = self._hpstate.get(item)
-        _LOGGER.debug("get_value(" + item + ")=%d", res)
+        _LOGGER.debug("get_value({0})={1}".format(item, res))
         return res
 
     def update_state(self, command, state_command):
