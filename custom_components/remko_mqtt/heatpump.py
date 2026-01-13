@@ -74,7 +74,7 @@ class HeatPump:
                 # In case the heat pump is controlled from another client don't send query_list
                 if message.topic == self._cmd_topic:
                     if "CLIENT_ID" in message.payload:
-                        _LOGGER.debug(
+                        _LOGGER.info(
                             "Message from other client, not sending query_list for 30 seconds"
                         )
                         self._keep_alive_delay = time.time()
@@ -168,6 +168,7 @@ class HeatPump:
         value = "true"
         query_list = "[" + ",".join(str(i) for i in range(1001, 5999)) + "]"
         payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list})
+        _LOGGER.debug("Checking capabilities by sending full query list [1001..5998]")
         await mqtt.async_publish(
             self._hass,
             self._cmd_topic,
@@ -219,6 +220,8 @@ class HeatPump:
 
         for k in json_dict:
             self._capabilites.append(k)
+
+        _LOGGER.info("Found {0} supported HP parameters: {1}".format(len(self._capabilities), self._capabilities))
 
         return True
 
@@ -290,7 +293,7 @@ class HeatPump:
 
         if self._dbg is True:
             self._mqtt_base = self._mqtt_base + "dbg_"
-            _LOGGER.error("INFO: MQTT Debug write enabled")
+            _LOGGER.error("INFO: MQTT Debug write enabled. This means no communication with heat pump but with pseudo-topics")
 
         _LOGGER.debug("Language[%s]", self._langid)
 
@@ -378,6 +381,8 @@ class HeatPump:
                 query_list = "[]"
             payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list})
 
+
+            _LOGGER.debug("Sending keep-alive message")
             _LOGGER.debug("topic:[%s]", topic)
             _LOGGER.debug("payload:[%s]", payload)
             self._hass.async_create_task(
