@@ -27,6 +27,7 @@ reg_id = {
     "opmode": ["5001", "sensor_mode", "", "", ""],
     "circulation_temp": ["5027", "sensor_temp", "ºC", "", ""],
     "out_temp": ["5032", "sensor_temp", "ºC", "", ""],
+    "target_temp": ["5033", "sensor_temp", "ºC", "", ""],
     "actual_temp": ["5034", "sensor_temp", "ºC", "", ""],
     "water_temp": ["5039", "sensor_temp", "ºC", "", ""],
     "heat_gen_status": ["5051", "binary_sensor", "", "", ""],
@@ -44,6 +45,9 @@ reg_id = {
     "energy_environmental": ["5600", "sensor_en", "kWh", "", ""],
     "dhw_heating": ["5693", "action", "", "", ""],
     "compressor_starts": ["5822", "sensor_counter", "", 0, 65535],
+    # "additional_heat_counter": ["5844", "sensor_counter", "", 0, 65535],
+    # "additional_heat_minutes": ["5845", "sensor_counter", "", 0, 65535],
+    # "additional_heat_hours": ["5846", "sensor_counter", "", 0, 65535],
 }
 
 # Translation dictionary
@@ -73,6 +77,7 @@ id_names = {
     "out_temp": ["Outside temp.", "Außentemperatur"],
     "party_mode": ["Party mode", "Partymodus"],
     "power_own_use": ["Power own use", "Leistung Eigenverbrauch"],
+    "target_temp": ["Target temperature", "Soll-Temperatur"],
     "th_consumption": ["Therm. power", "Leistung thermisch"],
     "timemode": ["Timeprogram function", "Funktion Zeitprogramm"],
     "timeprogram_circ": ["Time program circ.", "Zeitprogramm Zirk."],
@@ -94,7 +99,7 @@ id_names = {
     "mode3": ["Standby", "Standby"],
     "mode4": ["Cooling", "Kühlen"],
     "opmode1": ["Forced off", "Störung"],
-    "opmode2": ["Defosting", "Abtauen"],
+    "opmode2": ["Defrosting", "Abtauen"],
     "opmode3": ["Load defr. puffer", "Abtaupuffer"],
     "opmode4": ["DHW loading", "WW Puffer"],
     "opmode5": ["Storage energy", "Speicherenergie"],
