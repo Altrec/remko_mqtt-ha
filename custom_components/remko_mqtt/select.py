@@ -44,7 +44,7 @@ async def async_setup_entry(
     for key, meta in reg_id.items():
         if meta[FIELD_REGTYPE] != "select_input":
             continue
-        if meta[FIELD_REGNUM] not in heatpump._capabilites:
+        if meta[FIELD_REGNUM] not in heatpump._capabilities:
             continue
 
         device_id = key

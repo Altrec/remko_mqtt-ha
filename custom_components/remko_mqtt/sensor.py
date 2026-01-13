@@ -69,7 +69,7 @@ async def async_setup_entry(
                 "sensor_temp",
                 "timeprogram",
             ]
-            and reg_id[key][FIELD_REGNUM] in heatpump._capabilites
+            and reg_id[key][FIELD_REGNUM] in heatpump._capabilities
         ):
             device_id = key
             if key in id_names:

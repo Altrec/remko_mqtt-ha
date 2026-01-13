@@ -42,7 +42,7 @@ async def async_setup_entry(
     for key, meta in reg_id.items():
         if (
             meta[FIELD_REGTYPE] == "sensor_temp_inp"
-            and meta[FIELD_REGNUM] in heatpump._capabilites
+            and meta[FIELD_REGNUM] in heatpump._capabilities
         ):
             device_id = key
             friendly_name = id_names.get(key, [None])[heatpump._langid]

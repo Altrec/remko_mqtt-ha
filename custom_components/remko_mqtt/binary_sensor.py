@@ -49,7 +49,7 @@ async def async_setup_entry(
     for key, meta in reg_id.items():
         if (
             meta[FIELD_REGTYPE] == "binary_sensor"
-            and meta[FIELD_REGNUM] in heatpump._capabilites
+            and meta[FIELD_REGNUM] in heatpump._capabilities
         ):
             device_id = key
             friendly_name = (

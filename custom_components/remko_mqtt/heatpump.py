@@ -148,7 +148,7 @@ class HeatPump:
         self._domain = DOMAIN
         self._id = entry.data[CONF_ID]
         self._id_reg = {}
-        self._capabilites = []
+        self._capabilities = []
         # store individual unsubscribe callbacks
         self._unsub_data = None
         self._unsub_cmd = None
@@ -164,7 +164,7 @@ class HeatPump:
             self._hpstate[v[0]] = -1
 
     async def check_capabilities(self):
-        # Check capabilites/possible reg_ids
+        # Check capabilities/possible reg_ids
         value = "true"
         query_list = "[" + ",".join(str(i) for i in range(1001, 5999)) + "]"
         payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list})
@@ -219,7 +219,7 @@ class HeatPump:
         json_dict = json_dict.get("values")
 
         for k in json_dict:
-            self._capabilites.append(k)
+            self._capabilities.append(k)
 
         _LOGGER.info("Found {0} supported HP parameters: {1}".format(len(self._capabilities), self._capabilities))
 

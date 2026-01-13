@@ -29,7 +29,7 @@ async def async_setup_entry(
     for device_id, meta in reg_id.items():
         if meta[FIELD_REGTYPE] != "switch":
             continue
-        if meta[FIELD_REGNUM] not in heatpump._capabilites:
+        if meta[FIELD_REGNUM] not in heatpump._capabilities:
             continue
 
         friendly_name = id_names.get(device_id, [None])[heatpump._langid]
