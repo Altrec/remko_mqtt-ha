@@ -70,14 +70,15 @@ class HeatPump:
             "%s: message.payload:[%s] [%s]", self._id, message.topic, message.payload
         )
         try:
+            # In case the heat pump is controlled from another client don't send query_list
+            if message.topic == self._cmd_topic:
+                if "CLIENT_ID" in message.payload:
+                    _LOGGER.info(
+                        "Message from other client, not sending query_list for 30 seconds"
+                    )
+                    self._keep_alive_delay = time.time()
+
             if self._mqtt_counter >= self._freq:
-                # In case the heat pump is controlled from another client don't send query_list
-                if message.topic == self._cmd_topic:
-                    if "CLIENT_ID" in message.payload:
-                        _LOGGER.info(
-                            "Message from other client, not sending query_list for 30 seconds"
-                        )
-                        self._keep_alive_delay = time.time()
                 if message.topic == self._data_topic:
                     self._last_time = time.time()
                     json_dict = json.loads(message.payload)
