@@ -218,8 +218,11 @@ class HeatPump:
         json_dict = json.loads(reply)
         json_dict = json_dict.get("values")
 
-        for k in json_dict:
-            self._capabilities.append(k)
+        # for k in json_dict:
+        #     self._capabilities.append(k)
+
+        for entry in reg_id.values():
+            self._capabilities.append(entry[FIELD_REGNUM])
 
         _LOGGER.info("Found {0} supported HP parameters: {1}".format(len(self._capabilities), self._capabilities))
 
