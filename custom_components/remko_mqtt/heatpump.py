@@ -74,7 +74,7 @@ class HeatPump:
             if message.topic == self._cmd_topic:
                 if "CLIENT_ID" in message.payload:
                     _LOGGER.info(
-                        "Message from other client, not sending query_list for 30 seconds"
+                        "Message from other client({id}), not sending query_list for 30 seconds.".format(id=message.payload["CLIENT_ID"])
                     )
                     self._keep_alive_delay = time.time()
 
@@ -162,7 +162,7 @@ class HeatPump:
         # Create reverse lookup dictionary (id_reg->reg_number)
         for k, v in reg_id.items():
             self._id_reg[v[0]] = k
-            self._hpstate[v[0]] = -1
+            self._hpstate[v[0]] = None
 
     async def check_capabilities(self):
         # Check capabilities/possible reg_ids
