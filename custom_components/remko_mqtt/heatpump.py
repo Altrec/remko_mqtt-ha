@@ -375,14 +375,11 @@ class HeatPump:
             self._keep_alive_delay = time.time()
             topic = self._cmd_topic
             value = "true"
+            query_list = []
             if reg_id:
-                query_list = (
-                    "["
-                    + ",".join(entry[FIELD_REGNUM] for entry in reg_id.values())
-                    + "]"
-                )
-            else:
-                query_list = "[]"
+                for entry in reg_id.values():
+                    query_list.append(entry[FIELD_REGNUM])
+
             payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list})
 
 
