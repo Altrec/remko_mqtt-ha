@@ -383,7 +383,7 @@ class HeatPump:
             query_list = []
             if reg_id:
                 for entry in reg_id.values():
-                    query_list.append(int(entry[FIELD_REGNUM])
+                    query_list.append(int(entry[FIELD_REGNUM]))
 
             payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list, "CLIENT_ID": CONF_CLIENT_ID})
 
