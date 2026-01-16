@@ -74,9 +74,9 @@ class HeatPump:
             # In case the heat pump is controlled from another client don't send query_list
             if message.topic == self._cmd_topic:
                 json_dict = json.loads(message.payload)
-                if ("CLIENT_ID" not in json_dict) or (json_dict["CLIENT_ID"]!=CONF_CLIENT_ID):
+                if json_dict.get("CLIENT_ID", None)!=CONF_CLIENT_ID:
                     _LOGGER.info(
-                        "Message from other client({id}), not sending query_list for 30 seconds.".format(id=message.payload["CLIENT_ID"])
+                        "Message from other client({id}), not sending query_list for 30 seconds.".format(id=json_dict.get("CLIENT_ID", None))
                     )
                     self._keep_alive_delay = time.time()
 
