@@ -84,7 +84,7 @@ class HeatPump:
                 if message.topic == self._data_topic:
                     self._last_time = time.time()
                     json_dict = json.loads(message.payload)
-                    json_dict = json_dict.get("values")
+                    json_dict = json_dict.get("values", [])
                     for k in json_dict:
                         # Map incomming registers to named settings based on id_reg (Remko_regs)
                         if k in self._id_reg:
