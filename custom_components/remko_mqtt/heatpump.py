@@ -39,6 +39,7 @@ from .const import (
     CONF_LANGUAGE,
     CONF_FREQ,
     AVAILABLE_LANGUAGES,
+    CONF_CLIENT_ID,
 )
 from .remko_regs import (
     FIELD_MAXVALUE,
@@ -72,7 +73,7 @@ class HeatPump:
         try:
             # In case the heat pump is controlled from another client don't send query_list
             if message.topic == self._cmd_topic:
-                if "CLIENT_ID" in message.payload:
+                if ("CLIENT_ID" not in message.payload) or (message.payload["CLIENT_ID"]!=CONF_CLIENT_ID):
                     _LOGGER.info(
                         "Message from other client({id}), not sending query_list for 30 seconds.".format(id=message.payload["CLIENT_ID"])
                     )
@@ -166,9 +167,13 @@ class HeatPump:
 
     async def check_capabilities(self):
         # Check capabilities/possible reg_ids
-        value = "true"
+        value = True
         query_list = "[" + ",".join(str(i) for i in range(1001, 5999)) + "]"
-        payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list})
+        query_list = []
+        for i in range(1001, 5999):
+            query_list.append(i)
+
+        payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list, "CLIENT_ID": CONF_CLIENT_ID})
         _LOGGER.debug("Checking capabilities by sending full query list [1001..5998]")
         await mqtt.async_publish(
             self._hass,
@@ -374,13 +379,13 @@ class HeatPump:
         if time.time() - self._keep_alive_delay >= 30:
             self._keep_alive_delay = time.time()
             topic = self._cmd_topic
-            value = "true"
+            value = True
             query_list = []
             if reg_id:
                 for entry in reg_id.values():
-                    query_list.append(entry[FIELD_REGNUM])
+                    query_list.append(int(entry[FIELD_REGNUM])
 
-            payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list})
+            payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list, "CLIENT_ID": CONF_CLIENT_ID})
 
 
             _LOGGER.debug("Sending keep-alive message")

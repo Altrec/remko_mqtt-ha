@@ -14,7 +14,7 @@ CONF_DATA = "data_msg"
 CONF_FREQ = "freq"
 DEFAULT_DBG = False
 AVAILABLE_LANGUAGES = ["en", "de"]
-
+CONF_CLIENT_ID = "RemkoHA"
 
 PLATFORM_AUTOMATION = "automation"
 PLATFORM_GROUP = "group"
