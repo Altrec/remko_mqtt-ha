@@ -166,8 +166,14 @@ class HeatPump:
     async def check_capabilities(self):
         # Check capabilites/possible reg_ids
         value = "true"
-        query_list = "[" + ",".join(str(i) for i in range(1001, 5999)) + "]"
-        payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list})
+        query_list = [int(key) for key in self._id_reg]
+        payload = json.dumps(
+            {
+                "FORCE_RESPONSE": value,
+                "values": {"5074": "0255", "5106": "0000", "5109": "0000"},
+                "query_list": query_list,
+            }
+        )
         await mqtt.async_publish(
             self._hass,
             self._cmd_topic,
@@ -202,14 +208,23 @@ class HeatPump:
         except asyncio.TimeoutError:
             _LOGGER.error(
                 "Timeout waiting for capabilities response from heatpump. "
-                "Check: 1) MQTT broker running, 2) Heatpump connected, 3) Correct MQTT node"
+                "Check: 1) MQTT broker running, 2) Heatpump connected, 3) Correct MQTT node. "
+                "check_capabilities unsuccessful, using default reg_id's"
             )
+            for key in self._id_reg:
+                self._capabilites.append(key)
             return False
         except asyncio.CancelledError:
             _LOGGER.warning("Capability check was cancelled (likely during shutdown)")
             raise
         except Exception as e:
-            _LOGGER.exception("Unexpected error during capability check: %s", e)
+            _LOGGER.exception(
+                "check_capabilities unsuccessful, using default reg_id's. "
+                "Unexpected error during capability check: %s",
+                e,
+            )
+            for key in self._id_reg:
+                self._capabilites.append(key)
             return False
         finally:
             unsub()
@@ -368,15 +383,17 @@ class HeatPump:
             self._keep_alive_delay = time.time()
             topic = self._cmd_topic
             value = "true"
-            if reg_id:
-                query_list = (
-                    "["
-                    + ",".join(entry[FIELD_REGNUM] for entry in reg_id.values())
-                    + "]"
-                )
+            if self._capabilites:
+                query_list = [int(cap) for cap in self._capabilites]
             else:
                 query_list = "[]"
-            payload = json.dumps({"FORCE_RESPONSE": value, "query_list": query_list})
+            payload = json.dumps(
+                {
+                    "FORCE_RESPONSE": value,
+                    "values": {"5074": "0255", "5106": "0000", "5109": "0000"},
+                    "query_list": query_list,
+                }
+            )
 
             _LOGGER.debug("topic:[%s]", topic)
             _LOGGER.debug("payload:[%s]", payload)
