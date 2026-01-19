@@ -1,54 +1,55 @@
 # Remko generated register definitions
-FIELD_REGNUM = 0
+FIELD_REGID = 0
 FIELD_REGTYPE = 1
 FIELD_UNIT = 2
 FIELD_MINVALUE = 3
 FIELD_MAXVALUE = 4
+FIELD_ACTIVE = 5
 
-# Register as sensors
-reg_id = {
-    #  reg_id: ['reg#', 'type', 'unit', 'min', 'max'],
-    "dhw_opmode": ["1079", "select_input", "", 0, 16],
-    "timeprogram_dhw_a": ["1081", "timeprogram", "", "", ""],
-    "water_temp_req": ["1082", "sensor_temp_inp", "ºC", 20.0, 60.0],
-    "timeprogram_circ": ["1555", "timeprogram", "", "", ""],
-    "timeprogram_hc_a": ["1785", "timeprogram", "", "", ""],
-    "absence_mode": ["1893", "switch", "", "", ""],
-    "party_mode": ["1894", "switch", "", "", ""],
-    "user_profile": ["1936", "select_input", "", "", ""],
-    "timeprogram_dhw_b": ["1939", "timeprogram", "", "", ""],
-    "timeprogram_dhw_c": ["1940", "timeprogram", "", "", ""],
-    "timeprogram_hc_b": ["1941", "timeprogram", "", "", ""],
-    "timeprogram_hc_c": ["1942", "timeprogram", "", "", ""],
-    "main_mode": ["1951", "select_input", "", "", ""],
-    "heating_circ_mode": ["1972", "switch", "", "", ""],
-    "fixed_temp_req": ["1974", "sensor_temp_inp", "ºC", 20.0, 60.0],
-    "timemode": ["2149", "select_input", "", "", ""],
-    "opmode": ["5001", "sensor_mode", "", "", ""],
-    "circulation_temp": ["5027", "sensor_temp", "ºC", "", ""],
-    "out_temp": ["5032", "sensor_temp", "ºC", "", ""],
-    "actual_temp": ["5034", "sensor_temp", "ºC", "", ""],
-    "water_temp": ["5039", "sensor_temp", "ºC", "", ""],
-    "heat_gen_status": ["5051", "binary_sensor", "", "", ""],
-    "mixed_temp": ["5055", "sensor_temp", "ºC", "", ""],
-    "heat_water_temp_req": ["5085", "sensor_temp_inp", "ºC", 20.0, 60.0],
-    "energy_electric": ["5105", "sensor_en", "kWh", "", ""],
-    "energy_thermal": ["5119", "sensor_en", "kWh", "", ""],
-    "buff_temp": ["5131", "sensor_temp", "ºC", "", ""],
-    "heating_actual_temp": ["5190", "sensor_temp", "ºC", "", ""],
-    "power_own_use": ["5231", "sensor_el", "W", "", ""],
-    "el_consumption": ["5320", "sensor_el", "W", "", ""],
-    "th_consumption": ["5321", "sensor_el", "W", "", ""],
-    "energy_heating": ["5374", "sensor_en", "kWh", "", ""],
-    "energy_DHW_heating": ["5376", "sensor_en", "kWh", "", ""],
-    "energy_environmental": ["5600", "sensor_en", "kWh", "", ""],
-    "dhw_heating": ["5693", "action", "", "", ""],
-    "compressor_starts": ["5822", "sensor_counter", "", 0, 65535],
+# Registers definition dictionary
+remko_reg = {
+    #  reg_name: ['reg_id', 'type', 'unit', 'min', 'max', 'active'],
+    "dhw_opmode": ["1079", "select_input", "", 0, 16, True],
+    "timeprogram_dhw_a": ["1081", "timeprogram", "", "", "", False],
+    "water_temp_req": ["1082", "sensor_temp_inp", "ºC", 20.0, 60.0, True],
+    "timeprogram_circ": ["1555", "timeprogram", "", "", "", False],
+    "timeprogram_hc_a": ["1785", "timeprogram", "", "", "", False],
+    "absence_mode": ["1893", "switch", "", "", "", True],
+    "party_mode": ["1894", "switch", "", "", "", True],
+    "user_profile": ["1936", "select_input", "", "", "", True],
+    "timeprogram_dhw_b": ["1939", "timeprogram", "", "", "", False],
+    "timeprogram_dhw_c": ["1940", "timeprogram", "", "", "", False],
+    "timeprogram_hc_b": ["1941", "timeprogram", "", "", "", False],
+    "timeprogram_hc_c": ["1942", "timeprogram", "", "", "", False],
+    "main_mode": ["1951", "select_input", "", "", "", True],
+    "heating_circ_mode": ["1972", "switch", "", "", "", False],
+    "fixed_temp_req": ["1974", "sensor_temp_inp", "ºC", 20.0, 60.0, True],
+    "timemode": ["2149", "select_input", "", "", "", True],
+    "opmode": ["5001", "sensor_mode", "", "", "", True],
+    "circulation_temp": ["5027", "sensor_temp", "ºC", "", "", True],
+    "out_temp": ["5032", "sensor_temp", "ºC", "", "", True],
+    "actual_temp": ["5034", "sensor_temp", "ºC", "", "", False],
+    "water_temp": ["5039", "sensor_temp", "ºC", "", "", True],
+    "heat_gen_status": ["5051", "binary_sensor", "", "", "", True],
+    "mixed_temp": ["5055", "sensor_temp", "ºC", "", "", False],
+    "heat_water_temp_req": ["5085", "sensor_temp_inp", "ºC", 20.0, 60.0, True],
+    "energy_electric": ["5105", "sensor_en", "kWh", "", "", True],
+    "energy_thermal": ["5119", "sensor_en", "kWh", "", "", True],
+    "buff_temp": ["5131", "sensor_temp", "ºC", "", "", False],
+    "heating_actual_temp": ["5190", "sensor_temp", "ºC", "", "", True],
+    "power_own_use": ["5231", "sensor_el", "W", "", "", False],
+    "el_consumption": ["5320", "sensor_el", "W", "", "", True],
+    "th_consumption": ["5321", "sensor_el", "W", "", "", False],
+    "energy_heating": ["5374", "sensor_en", "kWh", "", "", True],
+    "energy_DHW_heating": ["5376", "sensor_en", "kWh", "", "", True],
+    "energy_environmental": ["5600", "sensor_en", "kWh", "", "", False],
+    "dhw_heating": ["5693", "action", "", "", "", True],
+    "compressor_starts": ["5822", "sensor_counter", "", 0, 65535, False],
 }
 
 # Translation dictionary
 #  ['en', 'de']
-id_names = {
+remko_reg_translation = {
     "absence_mode": ["Absence mode", "Abwesenheitssmodus"],
     "actual_temp": ["Actual temperature", "Ist-Temperatur"],
     "buff_temp": ["Buffer tank temp.", "Pufferspeicher Temp."],
@@ -94,7 +95,7 @@ id_names = {
     "mode3": ["Standby", "Standby"],
     "mode4": ["Cooling", "Kühlen"],
     "opmode1": ["Forced off", "Störung"],
-    "opmode2": ["Defosting", "Abtauen"],
+    "opmode2": ["Defrosting", "Abtauen"],
     "opmode3": ["Load defr. puffer", "Abtaupuffer"],
     "opmode4": ["DHW loading", "WW Puffer"],
     "opmode5": ["Storage energy", "Speicherenergie"],

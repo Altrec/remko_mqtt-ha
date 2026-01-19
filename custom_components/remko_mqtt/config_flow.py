@@ -14,7 +14,6 @@ from .const import (
     DOMAIN,
     CONF_ID,
     CONF_MQTT_NODE,
-    CONF_MQTT_DBG,
     CONF_LANGUAGE,
     CONF_FREQ,
     AVAILABLE_LANGUAGES,
@@ -52,7 +51,6 @@ class DomainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ),
                 ),
                 vol.Required(CONF_FREQ, default=100): cv.positive_int,
-                vol.Required(CONF_MQTT_DBG, default=False): cv.boolean,
             }
         )
 
@@ -85,9 +83,6 @@ class DomainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(
                     CONF_FREQ, default=user_input.get(CONF_FREQ, 100)
                 ): cv.positive_int,
-                vol.Required(
-                    CONF_MQTT_DBG, default=user_input.get(CONF_MQTT_DBG, False)
-                ): cv.boolean,
             }
         )
 
@@ -137,7 +132,6 @@ class DomainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_ID: id_name,
                     CONF_MQTT_NODE: prefix,
                     CONF_LANGUAGE: user_input.get(CONF_LANGUAGE),
-                    CONF_MQTT_DBG: user_input.get(CONF_MQTT_DBG, False),
                     CONF_FREQ: user_input.get(CONF_FREQ, 100),
                 },
                 options={},
@@ -191,10 +185,6 @@ class OptionsFlow(config_entries.OptionsFlow):
                 vol.Required(
                     CONF_FREQ, default=self._config_entry.data.get(CONF_FREQ)
                 ): cv.positive_int,
-                vol.Required(
-                    CONF_MQTT_DBG,
-                    default=self._config_entry.data.get(CONF_MQTT_DBG),
-                ): cv.boolean,
             }
         )
 
@@ -215,9 +205,6 @@ class OptionsFlow(config_entries.OptionsFlow):
                     ),
                 ),
                 vol.Required(CONF_FREQ, default=user_input[CONF_FREQ]): cv.positive_int,
-                vol.Required(
-                    CONF_MQTT_DBG, default=user_input[CONF_MQTT_DBG]
-                ): cv.boolean,
             }
         )
 
@@ -267,7 +254,6 @@ class OptionsFlow(config_entries.OptionsFlow):
                 CONF_MQTT_NODE: prefix,
                 CONF_LANGUAGE: user_input[CONF_LANGUAGE],
                 CONF_FREQ: user_input[CONF_FREQ],
-                CONF_MQTT_DBG: user_input[CONF_MQTT_DBG],
             }
 
             self.hass.config_entries.async_update_entry(

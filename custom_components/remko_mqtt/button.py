@@ -1,43 +1,82 @@
-import logging
-from typing import Any, Literal
+"""Module for Remko MQTT button integration."""
 
-from homeassistant.core import HomeAssistant
+import logging
+from typing import Any
+
+from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.components.button import ButtonEntity
-from homeassistant.helpers.device_registry import DeviceEntryType
+from homeassistant.helpers.entity_registry import RegistryEntryDisabler
 
 from .const import DOMAIN, CONF_ID, CONF_NAME, CONF_VER
-from .remko_regs import FIELD_REGNUM, FIELD_REGTYPE, id_names, reg_id
+from .remko_regs import (
+    FIELD_REGID,
+    FIELD_REGTYPE,
+    FIELD_ACTIVE,
+    remko_reg_translation,
+    remko_reg,
+)
 
 _LOGGER = logging.getLogger(__name__)
+
+# Constants
+_BUTTON_TYPES = {"action"}
+_ICON_MAPPING = {
+    "dhw_heating": "mdi:heat-wave",
+}
+_DEFAULT_ICON = "mdi:gauge"
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
-    discovery_info: dict | None = None,
+    discovery_info: dict[str, Any] | None = None,
 ) -> None:
-    """Set up platform for a new integration."""
+    """Set up button platform from config entry.
+
+    Called by the HA framework after async_setup_platforms has been called
+    during initialization of a new integration.
+    """
     heatpump = hass.data[DOMAIN]._heatpumps[config_entry.data[CONF_ID]]
     entities: list[ButtonEntity] = []
 
-    for device_id, meta in reg_id.items():
-        if meta[FIELD_REGTYPE] != "action":
+    for reg_name, reg_data in remko_reg.items():
+        reg_type = reg_data[FIELD_REGTYPE]
+        reg_id = reg_data[FIELD_REGID]
+        active = (
+            reg_data[FIELD_ACTIVE] != False
+        )  # Default to True if FIELD_ACTIVE not present
+
+        # Only create buttons for action type
+        if reg_type not in _BUTTON_TYPES:
             continue
 
-        friendly_name = id_names.get(device_id, [None])[heatpump._langid]
-        vp_reg = meta[FIELD_REGNUM]
+        # Get friendly name from translation
+        friendly_name = None
+        if reg_name in remko_reg_translation:
+            try:
+                friendly_name = remko_reg_translation[reg_name][heatpump._langid]
+            except (IndexError, KeyError):
+                _LOGGER.warning(
+                    "Could not get translation for %s at language index %s",
+                    reg_name,
+                    heatpump._langid,
+                )
 
         entities.append(
             HeatPumpButton(
-                hass,
-                heatpump,
-                device_id,
-                vp_reg,
-                friendly_name,
+                hass=hass,
+                heatpump=heatpump,
+                reg_name=reg_name,
+                reg_id=reg_id,
+                reg_type=reg_type,
+                active=active,
+                friendly_name=friendly_name,
             )
         )
 
@@ -45,44 +84,29 @@ async def async_setup_entry(
 
 
 class HeatPumpButton(ButtonEntity):
-    """Remko MQTT actionable button entity."""
+    """Button entity for Remko heat pump action registers."""
 
-    __slots__ = (
-        "hass",
-        "_heatpump",
-        "_hpstate",
-        "_vp_reg",
-        "_idx",
-    )
+    _attr_has_entity_name = True
+    _attr_available = True
 
     def __init__(
         self,
         hass: HomeAssistant,
         heatpump: Any,
-        device_id: str,
-        vp_reg: str,
+        reg_name: str,
+        reg_id: str,
+        reg_type: str,
+        active: bool,
         friendly_name: str | None,
     ) -> None:
+        """Initialize button entity."""
         self.hass = hass
         self._heatpump = heatpump
-        self._hpstate = heatpump._hpstate
 
-        # Unique id should not contain integration domain per guidelines
-        self._attr_unique_id = f"{heatpump._id}_{device_id}"
+        # Entity metadata
+        self._attr_unique_id = f"{heatpump._id}_{reg_name}"
         self._attr_name = friendly_name
-        self._attr_has_entity_name = True
-
-        _LOGGER.debug(
-            "creating button entity %s for idx %s", self._attr_unique_id, device_id
-        )
-
-        # icon/availability
-        self._attr_icon = "mdi:heat-wave" if device_id == "dhw_heating" else "mdi:gauge"
-        self._attr_available = True
-
-        self._idx = device_id
-        self._vp_reg = vp_reg
-
+        self._attr_icon = _ICON_MAPPING.get(reg_type, _DEFAULT_ICON)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, heatpump._id)},
             name=CONF_NAME,
@@ -91,21 +115,40 @@ class HeatPumpButton(ButtonEntity):
             entry_type=DeviceEntryType.SERVICE,
         )
 
-    @property
-    def should_poll(self) -> bool:
-        """No polling; updates are pushed via events."""
-        return False
+        # Register metadata
+        self._reg_name = reg_name
+        self._reg_id = reg_id
 
-    @property
-    def vp_reg(self) -> str:
-        """Return the device register id."""
-        return self._vp_reg
+        # Active flag
+        self._active = active
+
+        _LOGGER.debug(
+            "Creating button entity %s for register %s", self._attr_unique_id, reg_name
+        )
 
     @property
     def device_class(self) -> str:
-        """Return a device class string for this integration."""
+        """Return the device class of this button."""
         return f"{DOMAIN}_HeatPumpButton"
 
+    @property
+    def entity_registry_enabled_default(self) -> bool:
+        """Hide if active is False."""
+        return self._active
+
+    @staticmethod
+    async def _disable_entity(
+        hass: HomeAssistant, entity_id: str, disabled: bool
+    ) -> None:
+        """Programmatically hide/show entity via registry."""
+        entity_registry = er.async_get(hass)
+        if entry := entity_registry.async_get(entity_id):
+            disabled_by = RegistryEntryDisabler.INTEGRATION if disabled else None
+            entity_registry.async_update_entity(
+                entry.entity_id, disabled_by=disabled_by
+            )
+
     async def async_press(self) -> None:
-        """Handle button press by sending register write via MQTT."""
-        await self._heatpump.send_mqtt_reg(self._idx, 0)
+        """Handle button press by sending action command via MQTT."""
+        _LOGGER.debug("Button pressed:   %s", self._reg_name)
+        await self._heatpump.send_mqtt_reg(self._reg_name, 0)

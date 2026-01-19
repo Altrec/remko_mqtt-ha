@@ -73,8 +73,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             entity_id = service_call.data.get("entity_id")
             timeprogram = service_call.data.get("timeprogram")
 
-            _LOGGER.debug(f"Service called: entity_id={entity_id}")
-
             if not entity_id or not timeprogram:
                 _LOGGER.error("Missing data")
                 return

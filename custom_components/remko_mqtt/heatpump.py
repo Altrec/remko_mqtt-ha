@@ -2,32 +2,12 @@ import logging
 import json
 import asyncio
 import time
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable
 from datetime import timedelta
-
-import attr
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.components.input_number import (
-    ATTR_VALUE as INP_ATTR_VALUE,
-    DOMAIN as NUMBER_DOMAIN,
-    SERVICE_RELOAD as NUMBER_SERVICE_RELOAD,
-    SERVICE_SET_VALUE as NUMBER_SERVICE_SET_VALUE,
-)
-from homeassistant.components.input_select import (
-    DOMAIN as SELECT_DOMAIN,
-    SERVICE_RELOAD as SELECT_SERVICE_RELOAD,
-    SERVICE_SELECT_OPTION as SELECT_SERVICE_SET_OPTION,
-)
-from homeassistant.components.input_boolean import (
-    DOMAIN as BOOLEAN_DOMAIN,
-    SERVICE_RELOAD as BOOLEAN_SERVICE_RELOAD,
-)
-from homeassistant.const import (
-    ATTR_ENTITY_ID,
-    ATTR_OPTION,
-)
 from homeassistant.components import mqtt
 from homeassistant.helpers.event import async_track_time_interval
 
@@ -35,141 +15,148 @@ from .const import (
     DOMAIN,
     CONF_ID,
     CONF_MQTT_NODE,
-    CONF_MQTT_DBG,
     CONF_LANGUAGE,
     CONF_FREQ,
     AVAILABLE_LANGUAGES,
 )
-from .remko_regs import (
-    FIELD_MAXVALUE,
-    FIELD_MINVALUE,
-    FIELD_REGNUM,
-    FIELD_REGTYPE,
-    FIELD_UNIT,
-    id_names,
-    reg_id,
-)
-
+from .remko_regs import remko_reg_translation, remko_reg
 from .timeprogram_converter import RemkoTimeProgramConverter
 
 _LOGGER = logging.getLogger(__name__)
 
+# Constants
+_KEEP_ALIVE_INTERVAL = 30  # seconds
+_WATCHDOG_TIMEOUT = 300  # 5 minutes
+_WATCHDOG_CHECK_INTERVAL = timedelta(minutes=1)
+_MQTT_SLEEP_DURATION = 5  # seconds
+
 
 class HeatPump:
-    _dbg = True
-    _mqtt_base = ""
-    _langid = 0
-    _unsub_data: Callable[[], None] | None = None
-    _unsub_cmd: Callable[[], None] | None = None
-    _watchdog_unsub: Callable[[], None] | None = None
+    """MQTT interface for Remko heat pump systems."""
 
-    # ###
-    async def message_received(self, message):
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        """Initialize heat pump instance."""
+        # Core HomeAssistant references
+        self._hass = hass
+        self._entry = entry
+
+        # Device identification
+        self._domain = DOMAIN
+        self._id = entry.data[CONF_ID]
+
+        # Configuration
+        self._freq = entry.data[CONF_FREQ]
+
+        # Language setup
+        lang = entry.data[CONF_LANGUAGE]
+        self._langid = AVAILABLE_LANGUAGES.index(lang)
+
+        # MQTT configuration
+        self._mqtt_base = entry.data[CONF_MQTT_NODE] + "/SMTID/"
+        self._data_topic = self._mqtt_base + "HOST2CLIENT"
+        self._cmd_topic = self._mqtt_base + "CLIENT2HOST"
+
+        # Device state and register mapping
+        self._reg_name = {}
+        self._hpstate = {}
+        self._build_reverse_lookup()
+
+        # Device capabilities
+        self._capabilities = []
+
+        # MQTT subscriptions
+        self._unsub_data: Callable[[], None] | None = None
+        self._unsub_cmd: Callable[[], None] | None = None
+        self._watchdog_unsub: Callable[[], None] | None = None
+
+        # Timing and counters
+        self._last_time = time.time()
+        self._keep_alive_delay = time.time() - _KEEP_ALIVE_INTERVAL
+        self._mqtt_counter = entry.data[CONF_FREQ]
+
+    def _build_reverse_lookup(self) -> None:
+        """Build reverse lookup dictionary for register mapping."""
+        for name, data in remko_reg.items():
+            self._reg_name[data[0]] = name
+            self._hpstate[data[0]] = "unknown"
+
+    async def message_received(self, message) -> None:
         """Handle new MQTT messages."""
-        _LOGGER.debug(
-            "%s: message.payload:[%s] [%s]", self._id, message.topic, message.payload
-        )
+        _LOGGER.debug("[%s] MQTT message received:  topic=%s", self._id, message.topic)
         try:
             if self._mqtt_counter >= self._freq:
-                # In case the heat pump is controlled from another client don't send query_list
-                if message.topic == self._cmd_topic:
-                    if "CLIENT_ID" in message.payload:
-                        _LOGGER.debug(
-                            "Message from other client, not sending query_list for 30 seconds"
-                        )
-                        self._keep_alive_delay = time.time()
-                if message.topic == self._data_topic:
-                    self._last_time = time.time()
-                    json_dict = json.loads(message.payload)
-                    json_dict = json_dict.get("values")
-                    for k in json_dict:
-                        # Map incomming registers to named settings based on id_reg (Remko_regs)
-                        if k in self._id_reg:
-                            _LOGGER.debug("[%s] [%s] [%s]", self._id, k, json_dict[k])
-
-                            # Internal mapping of Remko_MQTT regs, used to create update events
-                            if reg_id[self._id_reg[k]][1] == "switch":
-                                self._hpstate[k] = int(json_dict[k], 16) > 0
-                            if reg_id[self._id_reg[k]][1] == "timeprogram":
-                                self._hpstate[k] = (
-                                    RemkoTimeProgramConverter.hex_to_timeprogram(
-                                        json_dict[k]
-                                    )
-                                )
-                            if reg_id[self._id_reg[k]][1] == "sensor_el":
-                                self._hpstate[k] = int(json_dict[k], 16) * 100
-                            if reg_id[self._id_reg[k]][1] == "sensor_en":
-                                self._hpstate[k] = int(json_dict[k], 16)
-                            if reg_id[self._id_reg[k]][1] == "sensor_counter":
-                                self._hpstate[k] = int(json_dict[k], 16)
-                            if reg_id[self._id_reg[k]][1] in [
-                                "sensor_temp",
-                                "sensor_temp_inp",
-                            ]:
-                                raw = int(json_dict[k], 16)
-                                self._hpstate[k] = (
-                                    -(raw & 0x8000) | (raw & 0x7FFF)
-                                ) / 10
-                            if reg_id[self._id_reg[k]][1] == "sensor_mode":
-                                mode = f"opmode{int(json_dict[k], 16)}"
-                                self._hpstate[k] = id_names[mode][self._langid]
-                            if reg_id[self._id_reg[k]][1] == "select_input":
-                                if self._id_reg[k] == "main_mode":
-                                    mode = f"mode{int(json_dict[k], 16)}"
-                                elif self._id_reg[k] == "dhw_opmode":
-                                    mode = f"dhwopmode{int(json_dict[k], 16)}"
-                                elif self._id_reg[k] == "timemode":
-                                    mode = f"timemode{int(json_dict[k], 16)}"
-                                elif self._id_reg[k] == "user_profile":
-                                    mode = f"user_profile{int(json_dict[k], 16)}"
-                                self._hpstate[k] = id_names[mode][self._langid]
-
-                    self._hass.bus.fire(
-                        self._domain + "_" + self._id + "_msg_rec_event", {}
-                    )
-
-                    await self.mqtt_keep_alive()
-                    self._mqtt_counter = 0
-
-                else:
-                    _LOGGER.debug(
-                        "JSON result was not from Remko-mqtt: %s", message.payload
-                    )
+                await self._process_message(message)
+                self._mqtt_counter = 0
             else:
                 self._mqtt_counter += 1
         except ValueError:
-            _LOGGER.error("MQTT payload could not be parsed as JSON")
-            _LOGGER.debug("Erroneous JSON: %s", message.payload)
+            _LOGGER.error(
+                "MQTT payload could not be parsed as JSON:  %s", message.payload
+            )
 
-    def __init__(self, hass, entry: ConfigEntry):
-        self._hass = hass
-        self._entry = entry
-        self._hpstate = {}
-        self._domain = DOMAIN
-        self._id = entry.data[CONF_ID]
-        self._id_reg = {}
-        self._capabilites = []
-        # store individual unsubscribe callbacks
-        self._unsub_data = None
-        self._unsub_cmd = None
-        self._freq = entry.data[CONF_FREQ]
-        self._last_time = time.time()
-        self._last_keep_alive = time.time() - 30
-        self._keep_alive_delay = time.time() - 30
-        self._mqtt_counter = entry.data[CONF_FREQ]
+    async def _process_message(self, message) -> None:
+        """Process MQTT message by topic."""
+        # Check for other clients controlling the heat pump
+        if message.topic == self._cmd_topic:
+            if "CLIENT_ID" in message.payload:
+                _LOGGER.debug(
+                    "Message from other client, delaying query_list for 30 seconds"
+                )
+                self._keep_alive_delay = time.time()
+                return
 
-        # Create reverse lookup dictionary (id_reg->reg_number)
-        for k, v in reg_id.items():
-            self._id_reg[v[0]] = k
-            self._hpstate[v[0]] = -1
+        # Process data from heat pump
+        if message.topic == self._data_topic:
+            self._last_time = time.time()
+            json_dict = json.loads(message.payload).get("values", {})
 
-    async def check_capabilities(self):
-        # Check capabilites/possible reg_ids
-        value = "true"
-        query_list = [int(key) for key in self._id_reg]
+            for register_id, value in json_dict.items():
+                if register_id in self._reg_name:
+                    self._update_hpstate(register_id, value)
+
+            self._hass.bus.fire(f"{self._domain}_{self._id}_msg_rec_event", {})
+            await self.mqtt_keep_alive()
+
+    def _update_hpstate(self, reg_id: str, value: str) -> None:
+        """Update heat pump state with converted register value."""
+        _LOGGER.debug("[%s] Register %s:  %s", self._id, reg_id, value)
+        reg_type = remko_reg[self._reg_name[reg_id]][1]
+
+        if reg_type == "switch":
+            self._hpstate[reg_id] = int(value, 16) > 0
+        elif reg_type == "timeprogram":
+            self._hpstate[reg_id] = RemkoTimeProgramConverter.hex_to_timeprogram(value)
+        elif reg_type == "sensor_el":
+            self._hpstate[reg_id] = int(value, 16) * 100
+        elif reg_type in ("sensor_en", "sensor_counter"):
+            self._hpstate[reg_id] = int(value, 16)
+        elif reg_type in ("sensor_temp", "sensor_temp_inp"):
+            raw = int(value, 16)
+            self._hpstate[reg_id] = (-(raw & 0x8000) | (raw & 0x7FFF)) / 10
+        elif reg_type == "sensor_mode":
+            mode = f"opmode{int(value, 16)}"
+            self._hpstate[reg_id] = remko_reg_translation[mode][self._langid]
+        elif reg_type == "select_input":
+            self._hpstate[reg_id] = self._get_select_mode(self._reg_name[reg_id], value)
+
+    def _get_select_mode(self, reg_id: str, value: str) -> str:
+        """Get select mode display name from register value."""
+        int_value = int(value, 16)
+        mode_map = {
+            "main_mode": f"mode{int_value}",
+            "dhw_opmode": f"dhwopmode{int_value}",
+            "timemode": f"timemode{int_value}",
+            "user_profile": f"user_profile{int_value}",
+        }
+        mode = mode_map.get(reg_id, f"mode{int_value}")
+        return remko_reg_translation[mode][self._langid]
+
+    async def check_capabilities(self) -> bool:
+        """Check capabilities/possible register IDs from heat pump."""
+        query_list = [int(key) for key in self._reg_name]
         payload = json.dumps(
             {
-                "FORCE_RESPONSE": value,
+                "FORCE_RESPONSE": "true",
                 "values": {"5074": "0255", "5106": "0000", "5109": "0000"},
                 "query_list": query_list,
             }
@@ -182,62 +169,45 @@ class HeatPump:
             retain=False,
         )
 
-        # Wait for the reply
-        future = asyncio.Future()
+        future: asyncio.Future = asyncio.Future()
 
         @callback
-        def message_received(msg):
-            # Check if future is still pending before setting result
+        def message_handler(msg) -> None:
+            """Handle capability response."""
             if not future.done() and not future.cancelled():
                 try:
                     future.set_result(msg.payload)
                 except (asyncio.InvalidStateError, RuntimeError) as e:
                     _LOGGER.warning("Could not set future result (late message): %s", e)
-            else:
-                _LOGGER.debug(
-                    "Future already resolved/cancelled, ignoring late message"
-                )
 
         unsub = await mqtt.async_subscribe(
-            self._hass, self._data_topic, message_received
+            self._hass, self._data_topic, message_handler
         )
 
         try:
-            # Wait for reply with timeout to prevent bootstrap hanging
             reply = await asyncio.wait_for(future, timeout=30.0)
-        except asyncio.TimeoutError:
+            json_dict = json.loads(reply).get("values", {})
+            self._capabilities = list(json_dict.keys())
+            return True
+        except TimeoutError:
             _LOGGER.error(
-                "Timeout waiting for capabilities response from heatpump. "
-                "Check: 1) MQTT broker running, 2) Heatpump connected, 3) Correct MQTT node. "
-                "check_capabilities unsuccessful, using default reg_id's"
+                "Timeout waiting for capabilities response from heat pump.  "
+                "Check:  1) MQTT broker running, 2) Heat pump connected, 3) Correct MQTT node"
             )
-            for key in self._id_reg:
-                self._capabilites.append(key)
+            self._capabilities = list(self._reg_name.keys())
             return False
         except asyncio.CancelledError:
             _LOGGER.warning("Capability check was cancelled (likely during shutdown)")
             raise
-        except Exception as e:
-            _LOGGER.exception(
-                "check_capabilities unsuccessful, using default reg_id's. "
-                "Unexpected error during capability check: %s",
-                e,
-            )
-            for key in self._id_reg:
-                self._capabilites.append(key)
+        except Exception:
+            _LOGGER.exception("Unexpected error during capability check")
+            self._capabilities = list(self._reg_name.keys())
             return False
         finally:
             unsub()
 
-        json_dict = json.loads(reply)
-        json_dict = json_dict.get("values")
-
-        for k in json_dict:
-            self._capabilites.append(k)
-
-        return True
-
-    async def setup_mqtt(self):
+    async def setup_mqtt(self) -> None:
+        """Initialize MQTT subscriptions and watchdog."""
         self._unsub_data = await mqtt.async_subscribe(
             self._hass,
             self._data_topic,
@@ -249,172 +219,150 @@ class HeatPump:
             self.message_received,
         )
 
-        # Schedule watchdog using Home Assistant helpers (registers an unsubscribe)
         self._hass.async_create_task(self.watchdog())
 
-        # """ Wait before getting new values """
-        await asyncio.sleep(5)
+        await asyncio.sleep(_MQTT_SLEEP_DURATION)
         self._mqtt_counter = self._freq
-        self._hass.bus.fire(self._domain + "_" + self._id + "_msg_rec_event", {})
+        self._hass.bus.fire(f"{self._domain}_{self._id}_msg_rec_event", {})
 
-    async def remove_mqtt(self):
-        # Call stored unsubscribe callbacks
-        if self._unsub_data is not None:
-            try:
-                self._unsub_data()
-            finally:
-                self._unsub_data = None
+    async def remove_mqtt(self) -> None:
+        """Remove all MQTT subscriptions."""
+        unsubs = [self._unsub_data, self._unsub_cmd, self._watchdog_unsub]
+        for unsub in unsubs:
+            if unsub is not None:
+                try:
+                    unsub()
+                except (RuntimeError, ValueError) as e:
+                    _LOGGER.debug("Error unsubscribing: %s", e)
 
-        if self._unsub_cmd is not None:
-            try:
-                self._unsub_cmd()
-            finally:
-                self._unsub_cmd = None
+        self._unsub_data = None
+        self._unsub_cmd = None
+        self._watchdog_unsub = None
 
-        # Unregister watchdog if active
-        if self._watchdog_unsub is not None:
-            try:
-                self._watchdog_unsub()
-            finally:
-                self._watchdog_unsub = None
+    async def update_config(self, entry: ConfigEntry) -> None:
+        """Update configuration from config entry."""
+        # Clean up existing subscriptions
+        await self.remove_mqtt()
 
-    async def update_config(self, entry):
-        # Unsubscribe any existing subscriptions before updating topics
-        if self._unsub_data is not None:
-            self._unsub_data()
-            self._unsub_data = None
-        if self._unsub_cmd is not None:
-            self._unsub_cmd()
-            self._unsub_cmd = None
-        # Unregister watchdog while updating
-        if self._watchdog_unsub is not None:
-            self._watchdog_unsub()
-            self._watchdog_unsub = None
+        # Update configuration
         lang = entry.data[CONF_LANGUAGE]
         self._langid = AVAILABLE_LANGUAGES.index(lang)
-        self._dbg = entry.data[CONF_MQTT_DBG]
         self._mqtt_base = entry.data[CONF_MQTT_NODE] + "/SMTID/"
         self._data_topic = self._mqtt_base + "HOST2CLIENT"
         self._cmd_topic = self._mqtt_base + "CLIENT2HOST"
         self._freq = entry.data[CONF_FREQ]
 
-        # Provide some debug info
         _LOGGER.debug(
-            f"INFO: {self._domain}_{self._id} mqtt_node: [{entry.data[CONF_MQTT_NODE]}]"
+            "Heat pump %s configured with MQTT node:  %s, language: %s",
+            self._id,
+            entry.data[CONF_MQTT_NODE],
+            self._langid,
         )
-
-        if self._dbg is True:
-            self._mqtt_base = self._mqtt_base + "dbg_"
-            _LOGGER.error("INFO: MQTT Debug write enabled")
-
-        _LOGGER.debug("Language[%s]", self._langid)
 
         await self.mqtt_keep_alive()
 
-    async def async_reset(self):
-        """Reset this heatpump to default state."""
-        # unsubscribe here
+    async def async_reset(self) -> bool:
+        """Reset heat pump to default state."""
         return True
 
     @property
-    def hpstate(self):
+    def hpstate(self) -> dict:
+        """Return current heat pump state."""
         return self._hpstate
 
-    def get_value(self, item):
+    def get_value(self, item: str) -> Any:
         """Get value for sensor."""
         res = self._hpstate.get(item)
-        _LOGGER.debug("get_value(" + item + ")=%d", res)
+        _LOGGER.debug("get_value(%s)=%s", item, res)
         return res
 
-    def update_state(self, command, state_command):
-        """Send MQTT message to Remko."""
-        _LOGGER.debug("update_state:" + command + " " + state_command)
+    def update_state(self, command: str, state_command: str) -> None:
+        """Send MQTT message to heat pump."""
+        _LOGGER.debug("update_state:  %s %s", command, state_command)
 
-    async def send_mqtt_reg(self, register_id, value) -> None:
-        """Service to send a message."""
-
-        register = reg_id[register_id][0]
-        reg_type = reg_id[register_id][1]
-        _LOGGER.debug("register:[%s]", register)
-
-        # if not isinstance(value, (int, float)) or value is None:
+    async def send_mqtt_reg(self, reg_name: str, value: Any) -> None:
+        """Send register value to heat pump via MQTT."""
         if value is None:
-            _LOGGER.error("No MQTT message sent due to missing value:[%s]", value)
+            _LOGGER.error("Cannot send register - value is None:  %s", reg_name)
             return
 
-        if register not in self._id_reg:
-            _LOGGER.error("No MQTT message sent due to unknown register:[%s]", register)
+        reg_id = remko_reg[reg_name][0]
+        reg_type = remko_reg[reg_name][1]
+        if reg_id not in self._reg_name:
+            _LOGGER.error("Unknown register: %s", reg_id)
             return
 
-        if reg_type == "timeprogram":
-            topic = self._cmd_topic
-            payload = json.dumps({"values": {register: value}})
-        if reg_type == "sensor_temp_inp":
-            topic = self._cmd_topic
-            hex_str = hex(int(value * 10)).upper()
-            hex_str = hex_str[2:].zfill(4)
-            payload = json.dumps({"values": {register: hex_str}})
-        elif reg_type == "select_input":
-            topic = self._cmd_topic
-            if register_id == "main_mode":
-                value = value + 1
-            value = str(value).zfill(2)
-            payload = json.dumps({"values": {register: value}})
-        elif reg_type in ("switch", "action"):
-            topic = self._cmd_topic
-            hex_str = hex(int(value))
-            hex_str = hex_str[2:].zfill(2)
-            payload = json.dumps({"values": {register: hex_str}})
+        _LOGGER.debug("Sending register:  %s (type: %s)", reg_id, reg_type)
 
-        _LOGGER.debug("topic:[%s]", topic)
-        _LOGGER.info("payload:[%s]", payload)
+        payload = self._build_mqtt_payload(reg_id, reg_type, reg_name, value)
+
+        _LOGGER.debug("MQTT topic: %s, payload: %s", self._cmd_topic, payload)
+
         self._hass.async_create_task(
-            mqtt.async_publish(self._hass, topic, payload, qos=2, retain=False)
+            mqtt.async_publish(
+                self._hass, self._cmd_topic, payload, qos=2, retain=False
+            )
         )
-        """ Wait before getting new values """
-        await asyncio.sleep(5)
+
+        await asyncio.sleep(_MQTT_SLEEP_DURATION)
         self._mqtt_counter = self._freq
-        self._hass.bus.fire(self._domain + "_" + self._id + "_msg_rec_event", {})
+        self._hass.bus.fire(f"{self._domain}_{self._id}_msg_rec_event", {})
+
+    def _build_mqtt_payload(
+        self, reg_id: str, reg_type: str, reg_name: str, value: Any
+    ) -> str:
+        """Build MQTT payload based on reg_type."""
+        if reg_type == "timeprogram":
+            return json.dumps({"values": {reg_id: value}})
+        if reg_type == "sensor_temp_inp":
+            hex_str = hex(int(value * 10)).upper()[2:].zfill(4)
+            return json.dumps({"values": {reg_id: hex_str}})
+
+        if reg_type == "select_input":
+            int_value = int(value) + (1 if reg_name == "main_mode" else 0)
+            return json.dumps({"values": {reg_id: str(int_value).zfill(2)}})
+        if reg_type in ("switch", "action"):
+            hex_str = hex(int(value))[2:].zfill(2)
+            return json.dumps({"values": {reg_id: hex_str}})
+
+        return json.dumps({"values": {reg_id: value}})
 
     async def mqtt_keep_alive(self) -> None:
-        """Heatpump sends MQTT messages only when triggered."""
-        # Limit keep alive message even if self._freq is set to 1
-        if time.time() - self._keep_alive_delay >= 30:
-            self._keep_alive_delay = time.time()
-            topic = self._cmd_topic
-            value = "true"
-            if self._capabilites:
-                query_list = [int(cap) for cap in self._capabilites]
-            else:
-                query_list = "[]"
-            payload = json.dumps(
-                {
-                    "FORCE_RESPONSE": value,
-                    "values": {"5074": "0255", "5106": "0000", "5109": "0000"},
-                    "query_list": query_list,
-                }
-            )
+        """Send keep-alive message to heat pump."""
+        if time.time() - self._keep_alive_delay < _KEEP_ALIVE_INTERVAL:
+            return
 
-            _LOGGER.debug("topic:[%s]", topic)
-            _LOGGER.debug("payload:[%s]", payload)
-            self._hass.async_create_task(
-                mqtt.async_publish(self._hass, topic, payload, qos=2, retain=False)
+        self._keep_alive_delay = time.time()
+        query_list = (
+            [int(cap) for cap in self._capabilities] if self._capabilities else []
+        )
+
+        payload = json.dumps(
+            {
+                "FORCE_RESPONSE": "true",
+                "values": {"5074": "0255", "5106": "0000", "5109": "0000"},
+                "query_list": query_list,
+            }
+        )
+
+        _LOGGER.debug("Sending keep-alive message to heat pump")
+
+        self._hass.async_create_task(
+            mqtt.async_publish(
+                self._hass, self._cmd_topic, payload, qos=2, retain=False
             )
+        )
 
     async def watchdog(self) -> None:
-        """Register a periodic checker that triggers mqtt_keep_alive when no messages arrive."""
-        from homeassistant.core import callback
+        """Monitor MQTT connection and trigger keep-alive when needed."""
 
         @callback
-        def _check(now):
-            if time.time() - self._last_time >= 300:  # 5 minutes
-                _LOGGER.debug(
-                    "No MQTT message received for 5 minutes, calling mqtt_keep_alive"
-                )
-                # schedule the coroutine
+        def _check(now) -> None:
+            """Check if keep-alive is needed."""
+            if time.time() - self._last_time >= _WATCHDOG_TIMEOUT:
+                _LOGGER.debug("No MQTT message for 5 minutes, triggering keep-alive")
                 self._hass.async_create_task(self.mqtt_keep_alive())
 
-        # Register a once-per-minute checker and keep the unsubscribe callable
         self._watchdog_unsub = async_track_time_interval(
-            self._hass, _check, timedelta(minutes=1)
+            self._hass, _check, _WATCHDOG_CHECK_INTERVAL
         )
