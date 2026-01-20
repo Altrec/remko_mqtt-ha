@@ -17,7 +17,7 @@
           "id_name": "Unique ID",
           "mqtt_node": "MQTT Nodename",
           "language": "Sprache",
-          "freq": "Zu überspringende MQTT Nachrichten"
+          "freq": "Maximaler Aktualisierungsinterval (in Sek.)"
         },
         "title": "Wärmepumpenkonfiguration",
         "description": "Erstelle eine neue Remko_MQTT Instanz"
@@ -36,7 +36,7 @@
         "data": {
           "mqtt_node": "MQTT Nodename",
           "language": "Sprache",
-          "freq": "Zu überspringende MQTT Nachrichten"
+          "freq": "Maximaler Aktualisierungsinterval (in Sek.)"
         },
         "title": "Optionen"
       }

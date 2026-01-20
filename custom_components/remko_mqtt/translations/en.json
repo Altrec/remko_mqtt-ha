@@ -17,7 +17,7 @@
           "id_name": "Unique ID",
           "mqtt_node": "MQTT Nodename",
           "language": "Language",
-          "freq": "Skipped MQTT messages"
+          "freq": "Max update frequency (in sec.)"
         },
         "title": "Heatpump config",
         "description": "Set up a new Remko_MQTT Instance"
@@ -36,7 +36,7 @@
         "data": {
           "mqtt_node": "MQTT Nodename",
           "language": "Language",
-          "freq": "Skipped MQTT messages"
+          "freq": "Max update frequency (in sec.)"
         },
         "title": "Options"
       }
