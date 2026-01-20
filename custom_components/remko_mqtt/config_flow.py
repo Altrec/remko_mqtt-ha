@@ -50,7 +50,7 @@ class DomainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     ),
                 ),
-                vol.Required(CONF_FREQ, default=100): cv.positive_int,
+                vol.Required(CONF_FREQ, default=60): cv.positive_int,
             }
         )
 
@@ -81,7 +81,7 @@ class DomainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ),
                 ),
                 vol.Required(
-                    CONF_FREQ, default=user_input.get(CONF_FREQ, 100)
+                    CONF_FREQ, default=user_input.get(CONF_FREQ, 60)
                 ): cv.positive_int,
             }
         )
@@ -132,7 +132,7 @@ class DomainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_ID: id_name,
                     CONF_MQTT_NODE: prefix,
                     CONF_LANGUAGE: user_input.get(CONF_LANGUAGE),
-                    CONF_FREQ: user_input.get(CONF_FREQ, 100),
+                    CONF_FREQ: user_input.get(CONF_FREQ, 60),
                 },
                 options={},
             )
