@@ -59,6 +59,7 @@ class HeatPump:
         # Device state and register mapping
         self._reg_name = {}
         self._hpstate = {}
+        self._reg_time = {}
         self._build_reverse_lookup()
 
         # Device capabilities
@@ -84,11 +85,12 @@ class HeatPump:
         """Handle new MQTT messages."""
         _LOGGER.debug("[%s] MQTT message received:  topic=%s", self._id, message.topic)
         try:
-            if self._mqtt_counter >= self._freq:
-                await self._process_message(message)
-                self._mqtt_counter = 0
-            else:
-                self._mqtt_counter += 1
+            # if self._mqtt_counter >= self._freq:
+            #    await self._process_message(message)
+            #    self._mqtt_counter = 0
+            # else:
+            #    self._mqtt_counter += 1
+            await self._process_message(message)
         except ValueError:
             _LOGGER.error(
                 "MQTT payload could not be parsed as JSON:  %s", message.payload
@@ -127,10 +129,28 @@ class HeatPump:
         elif reg_type == "timeprogram":
             self._hpstate[reg_id] = RemkoTimeProgramConverter.hex_to_timeprogram(value)
         elif reg_type == "sensor_el":
-            self._hpstate[reg_id] = int(value, 16) * 100
+            if (
+                reg_id not in self._reg_time
+                or time.time() - self._reg_time[reg_id] > self._freq
+            ):
+                self._reg_time[reg_id] = time.time()
+                self._hpstate[reg_id] = int(value, 16) * 100
         elif reg_type in ("sensor_en", "sensor_counter"):
-            self._hpstate[reg_id] = int(value, 16)
-        elif reg_type in ("sensor_temp", "sensor_temp_inp"):
+            if (
+                reg_id not in self._reg_time
+                or time.time() - self._reg_time[reg_id] > self._freq
+            ):
+                self._reg_time[reg_id] = time.time()
+                self._hpstate[reg_id] = int(value, 16)
+        elif reg_type == "sensor_temp":
+            if (
+                reg_id not in self._reg_time
+                or time.time() - self._reg_time[reg_id] > self._freq
+            ):
+                self._reg_time[reg_id] = time.time()
+                raw = int(value, 16)
+                self._hpstate[reg_id] = (-(raw & 0x8000) | (raw & 0x7FFF)) / 10
+        elif reg_type == "sensor_temp_inp":
             raw = int(value, 16)
             self._hpstate[reg_id] = (-(raw & 0x8000) | (raw & 0x7FFF)) / 10
         elif reg_type == "sensor_mode":
@@ -153,10 +173,13 @@ class HeatPump:
 
     async def check_capabilities(self) -> bool:
         """Check capabilities/possible register IDs from heat pump."""
+        # Capablility check disbaled for now, since not all values are reported correctly
+        self._capabilities = list(self._reg_name.keys())
+        """
         query_list = [int(key) for key in self._reg_name]
         payload = json.dumps(
             {
-                "FORCE_RESPONSE": "true",
+                "FORCE_RESPONSE": True,
                 "values": {"5074": "0255", "5106": "0000", "5109": "0000"},
                 "query_list": query_list,
             }
@@ -173,7 +196,7 @@ class HeatPump:
 
         @callback
         def message_handler(msg) -> None:
-            """Handle capability response."""
+            #Handle capability response.
             if not future.done() and not future.cancelled():
                 try:
                     future.set_result(msg.payload)
@@ -205,6 +228,8 @@ class HeatPump:
             return False
         finally:
             unsub()
+        """
+        return True
 
     async def setup_mqtt(self) -> None:
         """Initialize MQTT subscriptions and watchdog."""
@@ -339,7 +364,7 @@ class HeatPump:
 
         payload = json.dumps(
             {
-                "FORCE_RESPONSE": "true",
+                "FORCE_RESPONSE": True,
                 "values": {"5074": "0255", "5106": "0000", "5109": "0000"},
                 "query_list": query_list,
             }
