@@ -9,6 +9,7 @@ FIELD_ACTIVE = 5
 # Registers definition dictionary
 remko_reg = {
     #  reg_name: ['reg_id', 'type', 'unit', 'min', 'max', 'active'],
+    "air_temp_am": ["5145", "sensor_temp", "ºC", "", "", True],
     "dhw_opmode": ["1079", "select_input", "", 0, 16, True],
     "timeprogram_dhw_a": ["1081", "timeprogram", "", "", "", False],
     "water_temp_req": ["1082", "sensor_temp_inp", "ºC", 20.0, 60.0, True],
@@ -53,6 +54,7 @@ remko_reg = {
 # Translation dictionary
 #  ['en', 'de']
 remko_reg_translation = {
+    "air_temp_am": ["Air temp. outdoor unit", "Lufttemperatur Außenmodul"],
     "absence_mode": ["Absence mode", "Abwesenheitssmodus"],
     "actual_temp": ["Actual temperature", "Ist-Temperatur"],
     "buff_temp": ["Buffer tank temp.", "Pufferspeicher Temp."],
