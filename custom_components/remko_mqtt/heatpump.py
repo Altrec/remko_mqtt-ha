@@ -1,25 +1,28 @@
-import logging
-import json
+"""Remko MQTT heat pump main code."""
+
 import asyncio
-import time
 from collections.abc import Callable
 from datetime import timedelta
+import json
+import logging
+import time
 from typing import Any
 
+from homeassistant.components import mqtt
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.components import mqtt
 from homeassistant.helpers.event import async_track_time_interval
 
 from .const import (
-    DOMAIN,
-    CONF_ID,
-    CONF_MQTT_NODE,
-    CONF_LANGUAGE,
-    CONF_FREQ,
     AVAILABLE_LANGUAGES,
+    CONF_FREQ,
+    CONF_ID,
+    CONF_LANGUAGE,
+    CONF_MODEL,
+    CONF_MQTT_NODE,
+    DOMAIN,
 )
-from .remko_regs import remko_reg_translation, remko_reg
+from .remko_regs import get_remko_regs, remko_reg_translation
 from .timeprogram_converter import RemkoTimeProgramConverter
 
 _LOGGER = logging.getLogger(__name__)
@@ -44,26 +47,31 @@ class HeatPump:
         self._domain = DOMAIN
         self._id = entry.data[CONF_ID]
 
+        # Model setup & Register mapping
+        self._model = entry.options.get(CONF_MODEL, entry.data.get(CONF_MODEL, "wkf"))
+        self._remko_reg = get_remko_regs(self._model)
+
         # Configuration
-        self._freq = entry.data[CONF_FREQ]
+        self._freq = entry.options.get(CONF_FREQ, entry.data[CONF_FREQ])
 
         # Language setup
-        lang = entry.data[CONF_LANGUAGE]
+        lang = entry.options.get(CONF_LANGUAGE, entry.data[CONF_LANGUAGE])
         self._langid = AVAILABLE_LANGUAGES.index(lang)
 
         # MQTT configuration
-        self._mqtt_base = entry.data[CONF_MQTT_NODE] + "/SMTID/"
+        mqtt_node = entry.options.get(CONF_MQTT_NODE, entry.data[CONF_MQTT_NODE])
+        self._mqtt_base = mqtt_node + "/SMTID/"
         self._data_topic = self._mqtt_base + "HOST2CLIENT"
         self._cmd_topic = self._mqtt_base + "CLIENT2HOST"
 
         # Device state and register mapping
-        self._reg_name = {}
-        self._hpstate = {}
-        self._reg_time = {}
+        self._reg_name: dict[str, str] = {}
+        self._hpstate: dict[str, Any] = {}
+        self._reg_time: dict[str, float] = {}
         self._build_reverse_lookup()
 
         # Device capabilities
-        self._capabilities = []
+        self._capabilities: list[str] = []
 
         # MQTT subscriptions
         self._unsub_data: Callable[[], None] | None = None
@@ -73,27 +81,56 @@ class HeatPump:
         # Timing and counters
         self._last_time = time.time()
         self._keep_alive_delay = time.time() - _KEEP_ALIVE_INTERVAL
-        self._mqtt_counter = entry.data[CONF_FREQ]
+        self._mqtt_counter = self._freq
+
+    # --- Public Properties ---
+
+    @property
+    def id(self) -> str:
+        """Return the heat pump unique ID."""
+        return self._id
+
+    @property
+    def domain(self) -> str:
+        """Return the integration domain."""
+        return self._domain
+
+    @property
+    def model(self) -> str:
+        """Return the heat pump model."""
+        return self._model
+
+    @property
+    def langid(self) -> int:
+        """Return the active language index."""
+        return self._langid
+
+    @property
+    def capabilities(self) -> list[str]:
+        """Return the list of available register capabilities."""
+        return self._capabilities
+
+    @property
+    def hpstate(self) -> dict[str, Any]:
+        """Return current heat pump state."""
+        return self._hpstate
+
+    # --- Internal & Public Methods ---
 
     def _build_reverse_lookup(self) -> None:
         """Build reverse lookup dictionary for register mapping."""
-        for name, data in remko_reg.items():
+        for name, data in self._remko_reg.items():
             self._reg_name[data[0]] = name
             self._hpstate[data[0]] = "unknown"
 
     async def message_received(self, message) -> None:
         """Handle new MQTT messages."""
-        _LOGGER.debug("[%s] MQTT message received:  topic=%s", self._id, message.topic)
+        _LOGGER.debug("[%s] MQTT message received: topic=%s", self._id, message.topic)
         try:
-            # if self._mqtt_counter >= self._freq:
-            #    await self._process_message(message)
-            #    self._mqtt_counter = 0
-            # else:
-            #    self._mqtt_counter += 1
             await self._process_message(message)
         except ValueError:
             _LOGGER.error(
-                "MQTT payload could not be parsed as JSON:  %s", message.payload
+                "MQTT payload could not be parsed as JSON: %s", message.payload
             )
 
     async def _process_message(self, message) -> None:
@@ -121,8 +158,8 @@ class HeatPump:
 
     def _update_hpstate(self, reg_id: str, value: str) -> None:
         """Update heat pump state with converted register value."""
-        _LOGGER.debug("[%s] Register %s:  %s", self._id, reg_id, value)
-        reg_type = remko_reg[self._reg_name[reg_id]][1]
+        _LOGGER.debug("[%s] Register %s: %s", self._id, reg_id, value)
+        reg_type = self._remko_reg[self._reg_name[reg_id]][1]
 
         if reg_type == "switch":
             self._hpstate[reg_id] = int(value, 16) > 0
@@ -142,15 +179,7 @@ class HeatPump:
             ):
                 self._reg_time[reg_id] = time.time()
                 self._hpstate[reg_id] = int(value, 16)
-        elif reg_type == "sensor_temp":
-            if (
-                reg_id not in self._reg_time
-                or time.time() - self._reg_time[reg_id] > self._freq
-            ):
-                self._reg_time[reg_id] = time.time()
-                raw = int(value, 16)
-                self._hpstate[reg_id] = (raw - 0x10000 if raw >= 0x8000 else raw) / 10.0
-        elif reg_type == "sensor_temp_inp":
+        elif reg_type in ("sensor_temp", "sensor_temp_inp"):
             if (
                 reg_id not in self._reg_time
                 or time.time() - self._reg_time[reg_id] > self._freq
@@ -178,62 +207,7 @@ class HeatPump:
 
     async def check_capabilities(self) -> bool:
         """Check capabilities/possible register IDs from heat pump."""
-        # Capablility check disbaled for now, since not all values are reported correctly
         self._capabilities = list(self._reg_name.keys())
-        """
-        query_list = [int(key) for key in self._reg_name]
-        payload = json.dumps(
-            {
-                "FORCE_RESPONSE": True,
-                "values": {"5074": "0255", "5106": "0000", "5109": "0000"},
-                "query_list": query_list,
-            }
-        )
-        await mqtt.async_publish(
-            self._hass,
-            self._cmd_topic,
-            payload=payload,
-            qos=2,
-            retain=False,
-        )
-
-        future: asyncio.Future = asyncio.Future()
-
-        @callback
-        def message_handler(msg) -> None:
-            #Handle capability response.
-            if not future.done() and not future.cancelled():
-                try:
-                    future.set_result(msg.payload)
-                except (asyncio.InvalidStateError, RuntimeError) as e:
-                    _LOGGER.warning("Could not set future result (late message): %s", e)
-
-        unsub = await mqtt.async_subscribe(
-            self._hass, self._data_topic, message_handler
-        )
-
-        try:
-            reply = await asyncio.wait_for(future, timeout=30.0)
-            json_dict = json.loads(reply).get("values", {})
-            self._capabilities = list(json_dict.keys())
-            return True
-        except TimeoutError:
-            _LOGGER.error(
-                "Timeout waiting for capabilities response from heat pump.  "
-                "Check:  1) MQTT broker running, 2) Heat pump connected, 3) Correct MQTT node"
-            )
-            self._capabilities = list(self._reg_name.keys())
-            return False
-        except asyncio.CancelledError:
-            _LOGGER.warning("Capability check was cancelled (likely during shutdown)")
-            raise
-        except Exception:
-            _LOGGER.exception("Unexpected error during capability check")
-            self._capabilities = list(self._reg_name.keys())
-            return False
-        finally:
-            unsub()
-        """
         return True
 
     async def setup_mqtt(self) -> None:
@@ -271,34 +245,34 @@ class HeatPump:
 
     async def update_config(self, entry: ConfigEntry) -> None:
         """Update configuration from config entry."""
-        # Clean up existing subscriptions
         await self.remove_mqtt()
 
-        # Update configuration
-        lang = entry.data[CONF_LANGUAGE]
+        lang = entry.options.get(CONF_LANGUAGE, entry.data[CONF_LANGUAGE])
         self._langid = AVAILABLE_LANGUAGES.index(lang)
-        self._mqtt_base = entry.data[CONF_MQTT_NODE] + "/SMTID/"
+
+        mqtt_node = entry.options.get(CONF_MQTT_NODE, entry.data[CONF_MQTT_NODE])
+        self._mqtt_base = mqtt_node + "/SMTID/"
         self._data_topic = self._mqtt_base + "HOST2CLIENT"
         self._cmd_topic = self._mqtt_base + "CLIENT2HOST"
-        self._freq = entry.data[CONF_FREQ]
+
+        self._freq = entry.options.get(CONF_FREQ, entry.data[CONF_FREQ])
+
+        self._model = entry.options.get(CONF_MODEL, entry.data.get(CONF_MODEL, "wkf"))
+        self._remko_reg = get_remko_regs(self._model)
 
         _LOGGER.debug(
-            "Heat pump %s configured with MQTT node:  %s, language: %s",
+            "Heat pump %s configured with MQTT node: %s, language: %s",
             self._id,
-            entry.data[CONF_MQTT_NODE],
+            mqtt_node,
             self._langid,
         )
 
+        await self.setup_mqtt()
         await self.mqtt_keep_alive()
 
     async def async_reset(self) -> bool:
         """Reset heat pump to default state."""
         return True
-
-    @property
-    def hpstate(self) -> dict:
-        """Return current heat pump state."""
-        return self._hpstate
 
     def get_value(self, item: str) -> Any:
         """Get value for sensor."""
@@ -308,21 +282,21 @@ class HeatPump:
 
     def update_state(self, command: str, state_command: str) -> None:
         """Send MQTT message to heat pump."""
-        _LOGGER.debug("update_state:  %s %s", command, state_command)
+        _LOGGER.debug("update_state: %s %s", command, state_command)
 
     async def send_mqtt_reg(self, reg_name: str, value: Any) -> None:
         """Send register value to heat pump via MQTT."""
         if value is None:
-            _LOGGER.error("Cannot send register - value is None:  %s", reg_name)
+            _LOGGER.error("Cannot send register - value is None: %s", reg_name)
             return
 
-        reg_id = remko_reg[reg_name][0]
-        reg_type = remko_reg[reg_name][1]
+        reg_id = self._remko_reg[reg_name][0]
+        reg_type = self._remko_reg[reg_name][1]
         if reg_id not in self._reg_name:
             _LOGGER.error("Unknown register: %s", reg_id)
             return
 
-        _LOGGER.debug("Sending register:  %s (type: %s)", reg_id, reg_type)
+        _LOGGER.debug("Sending register: %s (type: %s)", reg_id, reg_type)
 
         payload = self._build_mqtt_payload(reg_id, reg_type, reg_name, value)
 
@@ -345,7 +319,7 @@ class HeatPump:
         if reg_type == "timeprogram":
             return json.dumps({"values": {reg_id: value}})
         if reg_type == "sensor_temp_inp":
-            hex_str = f"{int(round(value * 10)) & 0xFFFF:04X}"
+            hex_str = f"{round(value * 10) & 0xFFFF:04X}"
             return json.dumps({"values": {reg_id: hex_str}})
 
         if reg_type == "select_input":

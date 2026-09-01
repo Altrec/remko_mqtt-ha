@@ -1,15 +1,13 @@
+"""Remko MQTT custom integration."""
+
 import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, Event
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+from homeassistant.core import Event, HomeAssistant
 
-from .const import (
-    DOMAIN,
-    CONF_ID,
-)
-
+from .const import CONF_ID, DOMAIN
 from .heatpump import HeatPump
 
 _LOGGER = logging.getLogger(__name__)
@@ -17,11 +15,11 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [
     "binary_sensor",
-    "sensor",
-    "switch",
+    "button",
     "number",
     "select",
-    "button",
+    "sensor",
+    "switch",
 ]
 
 
@@ -33,7 +31,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
-    """Migrate configuration entry if needed"""
+    """Migrate configuration entry if needed."""
     return True
 
 
@@ -79,7 +77,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
             entity = hass.states.get(entity_id)
             if not entity:
-                _LOGGER.error(f"Entity not found: {entity_id}")
+                _LOGGER.error("Entity not found: %s", entity_id)
                 return
 
             new_attrs = dict(entity.attributes)
@@ -96,15 +94,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 },
             )
 
-        except Exception as e:
-            _LOGGER.error(f"Error: {e}", exc_info=True)
+        except Exception:
+            _LOGGER.exception("Error handling update_timeprogram service")
 
     # Registriere den Custom Service
     hass.services.async_register(
         DOMAIN, "update_timeprogram", handle_update_timeprogram, schema=None
     )
 
-    _LOGGER.info(f"Registered service: {DOMAIN}.update_timeprogram")
+    _LOGGER.info("Registered service: %s.update_timeprogram", DOMAIN)
 
     return True
 
@@ -114,9 +112,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         worker: RemkoWorker = hass.data[DOMAIN]
-        await hass.async_create_task(
-            worker.update_heatpump_entry(entry)
-        ) if False else None
         worker.remove_entry(entry)
         if worker.is_idle():
             # also remove worker if not used by any entry any more
@@ -143,11 +138,17 @@ class RemkoWorker:
 
     @property
     def worker(self) -> bool:
+        """Return worker status."""
         return self._worker
 
     @property
     def heatpumps(self) -> dict:
+        """Return all heat pump instances."""
         return self._heatpumps
+
+    def get_heatpump(self, heatpump_id: str) -> HeatPump | None:
+        """Return heat pump instance by ID."""
+        return self._heatpumps.get(heatpump_id)
 
     async def add_entry(self, config_entry: ConfigEntry) -> HeatPump:
         """Add entry and create HeatPump instance."""
@@ -178,4 +179,5 @@ class RemkoWorker:
         await self._hass.async_create_task(hp.setup_mqtt())
 
     def is_idle(self) -> bool:
+        """Return whether the worker has no active heat pumps."""
         return not bool(self._heatpumps)

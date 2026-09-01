@@ -1,12 +1,12 @@
 {
   "title": "Remko MQTT",
   "config": {
-    "flow_title":"Flow title",
+    "flow_title": "Flow title",
     "abort": {
       "already_configured": "Der eingegebene Name ist bereits in Verwendung."
     },
     "error": {
-      "invalid_nodename": "Der eingebene MQTT Nodename ist nicht gültig",
+      "invalid_nodename": "Der eingegebene MQTT Nodename ist nicht gültig",
       "creation_id": "Die ID ist nicht einzigartig oder gültig",
       "creation_error": "Während der Erstellung der Konfiguration ist ein Fehler aufgetreten",
       "invalid_language": "Ungültige Sprache"
@@ -15,13 +15,14 @@
       "user": {
         "data": {
           "id_name": "Unique ID",
+          "model": "Wärmepumpen Modell",
           "mqtt_node": "MQTT Nodename",
           "language": "Sprache",
-          "freq": "Maximaler Aktualisierungsinterval (in Sek.)"
+          "freq": "Maximaler Aktualisierungsintervall (in Sek.)"
         },
         "title": "Wärmepumpenkonfiguration",
         "description": "Erstelle eine neue Remko_MQTT Instanz"
-       }
+      }
     },
     "progress": {
       "slow_task": "This message will be displayed if `slow_task` is returned as `progress_action` for `async_show_progress`."
@@ -34,11 +35,20 @@
     "step": {
       "user": {
         "data": {
+          "model": "Wärmepumpen Modell",
           "mqtt_node": "MQTT Nodename",
           "language": "Sprache",
-          "freq": "Maximaler Aktualisierungsinterval (in Sek.)"
+          "freq": "Maximaler Aktualisierungsintervall (in Sek.)"
         },
         "title": "Optionen"
+      }
+    }
+  },
+  "selector": {
+    "select": {
+      "options": {
+        "wkf": "WKF Serie",
+        "wsp": "WSP Serie"
       }
     }
   }

@@ -10,13 +10,13 @@ from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, CONF_ID, CONF_NAME, CONF_VER
+from .const import CONF_ID, CONF_NAME, CONF_VER, DOMAIN
 from .remko_regs import (
+    FIELD_ACTIVE,
     FIELD_REGID,
     FIELD_REGTYPE,
-    FIELD_ACTIVE,
+    get_remko_regs,
     remko_reg_translation,
-    remko_reg,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -36,35 +36,28 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
     discovery_info: dict[str, Any] | None = None,
 ) -> None:
-    """Set up switch platform from config entry.
-
-    Called by the HA framework after async_setup_platforms has been called
-    during initialization of a new integration.
-    """
-    heatpump = hass.data[DOMAIN]._heatpumps[config_entry.data[CONF_ID]]
+    """Set up switch platform from config entry."""
+    heatpump = hass.data[DOMAIN].get_heatpump(config_entry.data[CONF_ID])
     entities: list[SwitchEntity] = []
+    registers = get_remko_regs(heatpump.model)
 
-    for reg_name, reg_data in remko_reg.items():
+    for reg_name, reg_data in registers.items():
         reg_type = reg_data[FIELD_REGTYPE]
         reg_id = reg_data[FIELD_REGID]
-        active = (
-            reg_data[FIELD_ACTIVE] != False
-        )  # Default to True if FIELD_ACTIVE not present
+        active = reg_data.get(FIELD_ACTIVE, True)
 
-        # Only create switches for switch type that are available
-        if reg_type not in _SWITCH_TYPES or reg_id not in heatpump._capabilities:
+        if reg_type not in _SWITCH_TYPES or reg_id not in heatpump.capabilities:
             continue
 
-        # Get friendly name from translation
         friendly_name = None
         if reg_name in remko_reg_translation:
             try:
-                friendly_name = remko_reg_translation[reg_name][heatpump._langid]
+                friendly_name = remko_reg_translation[reg_name][heatpump.langid]
             except IndexError, KeyError:
                 _LOGGER.warning(
                     "Could not get translation for %s at language index %s",
                     reg_name,
-                    heatpump._langid,
+                    heatpump.lang_id,
                 )
 
         entities.append(
@@ -100,12 +93,11 @@ class HeatPumpSwitch(SwitchEntity):
         self.hass = hass
         self._heatpump = heatpump
 
-        # Entity metadata
-        self._attr_unique_id = f"{heatpump._id}_{reg_name}"
+        self._attr_unique_id = f"{heatpump.id}_{reg_name}"
         self._attr_name = friendly_name
         self._attr_icon = _ICON_MAPPING.get(reg_name, _DEFAULT_ICON)
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, heatpump._id)},
+            identifiers={(DOMAIN, heatpump.id)},
             name=CONF_NAME,
             manufacturer="Remko",
             model=CONF_VER,
@@ -131,20 +123,28 @@ class HeatPumpSwitch(SwitchEntity):
             reg_name,
         )
 
-    @property
-    def device_class(self) -> str:
-        """Return the device class of this switch."""
-        return f"{DOMAIN}_HeatPumpSwitch"
-
     async def async_added_to_hass(self) -> None:
         """Register MQTT event listener when entity is added to Home Assistant."""
 
         @callback
         def _handle_mqtt_event(event) -> None:
             """Handle MQTT message received event."""
-            self.hass.async_create_task(self._async_update_from_event(event))
+            value = self._heatpump.get_value(self._reg_id)
 
-        mqtt_event = f"{self._heatpump._domain}_{self._heatpump._id}_msg_rec_event"
+            if value is None:
+                _LOGGER.debug("Could not retrieve value for %s", self._reg_name)
+                self._attr_available = False
+                new_state = None
+            else:
+                self._attr_available = True
+                new_state = self._convert_to_bool(value)
+
+            if self._attr_is_on != new_state:
+                self._attr_is_on = new_state
+                self.async_write_ha_state()
+                _LOGGER.debug("State updated: %s -> %s", self._reg_name, new_state)
+
+        mqtt_event = f"{self._heatpump.domain}_{self._heatpump.id}_msg_rec_event"
         listener = self.hass.bus.async_listen(mqtt_event, _handle_mqtt_event)
         self.async_on_remove(listener)
         _LOGGER.debug("MQTT event listener registered for %s", self.entity_id)
@@ -163,32 +163,14 @@ class HeatPumpSwitch(SwitchEntity):
         self._attr_available = True
         self._attr_is_on = self._convert_to_bool(value)
 
-    async def _async_update_from_event(self, event) -> None:
-        """Handle MQTT event and update state if changed."""
-        _LOGGER.debug("MQTT event received for %s", self._reg_name)
-        value = self._heatpump.get_value(self._reg_id)
-
-        if value is None:
-            _LOGGER.debug("Could not retrieve value for %s", self._reg_name)
-            self._attr_available = False
-            new_state = None
-        else:
-            self._attr_available = True
-            new_state = self._convert_to_bool(value)
-
-        if self._attr_is_on != new_state:
-            self._attr_is_on = new_state
-            self.async_write_ha_state()
-            _LOGGER.debug("State updated:   %s -> %s", self._reg_name, new_state)
-
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on by writing to the device via MQTT."""
-        _LOGGER.debug("Turning on switch:   %s", self._reg_name)
+        _LOGGER.debug("Turning on switch: %s", self._reg_name)
         await self._heatpump.send_mqtt_reg(self._reg_name, 1)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off by writing to the device via MQTT."""
-        _LOGGER.debug("Turning off switch:  %s", self._reg_name)
+        _LOGGER.debug("Turning off switch: %s", self._reg_name)
         await self._heatpump.send_mqtt_reg(self._reg_name, 0)
 
     def _convert_to_bool(self, value: Any) -> bool:

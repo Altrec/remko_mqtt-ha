@@ -11,16 +11,17 @@ from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, CONF_ID, CONF_NAME, CONF_VER
+from .const import CONF_ID, CONF_NAME, CONF_VER, DOMAIN
+from .heatpump import HeatPump
 from .remko_regs import (
+    FIELD_ACTIVE,
+    FIELD_MAXVALUE,
+    FIELD_MINVALUE,
     FIELD_REGID,
     FIELD_REGTYPE,
     FIELD_UNIT,
-    FIELD_MINVALUE,
-    FIELD_MAXVALUE,
-    FIELD_ACTIVE,
+    get_remko_regs,
     remko_reg_translation,
-    remko_reg,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -30,7 +31,6 @@ _NUMBER_TYPES = {"sensor_temp_inp"}
 _TEMPERATURE_TYPES = {"sensor_temp", "sensor_temp_inp"}
 _TEMPERATURE_UNITS = {"C", "°C"}
 _DEFAULT_STEP = 0.5
-_DEFAULT_MODE = "box"
 _TEMPERATURE_ICON = "mdi:temperature-celsius"
 _DEFAULT_ICON = "mdi:gauge"
 
@@ -46,41 +46,43 @@ async def async_setup_entry(
     Called by the HA framework after async_setup_platforms has been called
     during initialization of a new integration.
     """
-    heatpump = hass.data[DOMAIN]._heatpumps[config_entry.data[CONF_ID]]
+    heatpump = hass.data[DOMAIN].get_heatpump(config_entry.data[CONF_ID])
     entities: list[NumberEntity] = []
 
-    for reg_name, reg_data in remko_reg.items():
+    # Register-Map für das spezifische Wärmepumpen-Modell abrufen
+    registers = get_remko_regs(heatpump.model)
+
+    for reg_name, reg_data in registers.items():
         reg_type = reg_data[FIELD_REGTYPE]
         reg_id = reg_data[FIELD_REGID]
-        active = (
-            reg_data[FIELD_ACTIVE] != False
-        )  # Default to True if FIELD_ACTIVE not present
+        active = reg_data.get(FIELD_ACTIVE, True)
 
         # Only create number entities for sensor_temp_inp type that are available
-        if reg_type not in _NUMBER_TYPES or reg_id not in heatpump._capabilities:
+        if reg_type not in _NUMBER_TYPES or reg_id not in heatpump.capabilities:
             continue
 
         # Get friendly name from translation
         friendly_name = None
         if reg_name in remko_reg_translation:
             try:
-                friendly_name = remko_reg_translation[reg_name][heatpump._langid]
+                friendly_name = remko_reg_translation[reg_name][heatpump.langid]
             except IndexError, KeyError:
                 _LOGGER.warning(
                     "Could not get translation for %s at language index %s",
                     reg_name,
-                    heatpump._langid,
+                    heatpump.langid,
                 )
 
         entities.append(
             HeatPumpNumber(
                 hass=hass,
                 heatpump=heatpump,
+                config_entry=config_entry,
                 reg_name=reg_name,
                 reg_id=reg_id,
                 active=active,
                 reg_type=reg_type,
-                reg_unit=reg_data[FIELD_UNIT],
+                reg_unit=reg_data.get(FIELD_UNIT),
                 reg_min=reg_data[FIELD_MINVALUE],
                 reg_max=reg_data[FIELD_MAXVALUE],
                 friendly_name=friendly_name,
@@ -100,7 +102,8 @@ class HeatPumpNumber(NumberEntity):
     def __init__(
         self,
         hass: HomeAssistant,
-        heatpump: Any,
+        heatpump: HeatPump,
+        config_entry: ConfigEntry,
         reg_name: str,
         reg_id: str,
         active: bool,
@@ -115,13 +118,13 @@ class HeatPumpNumber(NumberEntity):
         self._heatpump = heatpump
 
         # Entity metadata
-        self._attr_unique_id = f"{heatpump._id}_{reg_name}"
+        self._attr_unique_id = f"{heatpump.id}_{reg_name}"
         self._attr_name = friendly_name
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, heatpump._id)},
-            name=CONF_NAME,
+            identifiers={(DOMAIN, heatpump.id)},
+            name=config_entry.data.get(CONF_NAME, "Remko Wärmepumpe"),
             manufacturer="Remko",
-            model=CONF_VER,
+            model=config_entry.data.get(CONF_VER, "WKF"),
             entry_type=DeviceEntryType.SERVICE,
         )
 
@@ -168,7 +171,7 @@ class HeatPumpNumber(NumberEntity):
             """Handle MQTT message received event."""
             self.hass.async_create_task(self._async_update_from_event(event))
 
-        mqtt_event = f"{self._heatpump._domain}_{self._heatpump._id}_msg_rec_event"
+        mqtt_event = f"{self._heatpump.domain}_{self._heatpump.id}_msg_rec_event"
         listener = self.hass.bus.async_listen(mqtt_event, _handle_mqtt_event)
         self.async_on_remove(listener)
         _LOGGER.debug("MQTT event listener registered for %s", self.entity_id)
@@ -198,7 +201,7 @@ class HeatPumpNumber(NumberEntity):
         if self._attr_native_value != value:
             self._attr_native_value = value
             self.async_write_ha_state()
-            _LOGGER.debug("State updated:  %s -> %s", self._reg_name, value)
+            _LOGGER.debug("State updated: %s -> %s", self._reg_name, value)
 
     async def async_set_native_value(self, value: float) -> None:
         """Set new value and send register write via MQTT."""
@@ -211,15 +214,7 @@ class HeatPumpNumber(NumberEntity):
             _LOGGER.debug("Value unchanged for %s, skipping send", self._reg_name)
             return
 
-        # Update local cache
-        self._heatpump._hpstate[self._reg_id] = value
-
         # Send to heat pump
         await self._heatpump.send_mqtt_reg(self._reg_name, value)
-
-        # Notify other entities
-        self._heatpump._hass.bus.fire(
-            f"{self._heatpump._domain}_{self._heatpump._id}_msg_rec_event", {}
-        )
 
         _LOGGER.info("Value sent for %s: %s", self._reg_name, value)

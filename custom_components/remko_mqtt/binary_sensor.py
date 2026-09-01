@@ -5,20 +5,19 @@ from typing import Any
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, CONF_ID, CONF_NAME, CONF_VER
+from .const import CONF_ID, CONF_NAME, CONF_VER, DOMAIN
+from .heatpump import HeatPump
 from .remko_regs import (
+    FIELD_ACTIVE,
     FIELD_REGID,
     FIELD_REGTYPE,
-    FIELD_UNIT,
-    FIELD_ACTIVE,
+    get_remko_regs,
     remko_reg_translation,
-    remko_reg,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -39,36 +38,38 @@ async def async_setup_entry(
     Called by the HA framework after async_setup_platforms has been called
     during initialization of a new integration.
     """
-    heatpump = hass.data[DOMAIN]._heatpumps[config_entry.data[CONF_ID]]
+    heatpump = hass.data[DOMAIN].get_heatpump(config_entry.data[CONF_ID])
     entities: list[BinarySensorEntity] = []
 
-    for reg_name, reg_data in remko_reg.items():
+    # Register-Map für das spezifische Wärmepumpen-Modell abrufen
+    registers = get_remko_regs(heatpump.model)
+
+    for reg_name, reg_data in registers.items():
         reg_type = reg_data[FIELD_REGTYPE]
         reg_id = reg_data[FIELD_REGID]
-        active = (
-            reg_data[FIELD_ACTIVE] != False
-        )  # Default to True if FIELD_ACTIVE not present
+        active = reg_data[FIELD_ACTIVE]
 
         # Only create binary sensors for binary_sensor type that are available
-        if reg_type not in _BINARY_SENSOR_TYPES or reg_id not in heatpump._capabilities:
+        if reg_type not in _BINARY_SENSOR_TYPES or reg_id not in heatpump.capabilities:
             continue
 
         # Get friendly name from translation
         friendly_name = None
         if reg_name in remko_reg_translation:
             try:
-                friendly_name = remko_reg_translation[reg_name][heatpump._langid]
+                friendly_name = remko_reg_translation[reg_name][heatpump.langid]
             except IndexError, KeyError:
                 _LOGGER.warning(
                     "Could not get translation for %s at language index %s",
                     reg_name,
-                    heatpump._langid,
+                    heatpump.langid,
                 )
 
         entities.append(
             HeatPumpBinarySensor(
                 hass=hass,
                 heatpump=heatpump,
+                config_entry=config_entry,
                 reg_name=reg_name,
                 reg_id=reg_id,
                 active=active,
@@ -88,7 +89,8 @@ class HeatPumpBinarySensor(BinarySensorEntity):
     def __init__(
         self,
         hass: HomeAssistant,
-        heatpump: Any,
+        heatpump: HeatPump,
+        config_entry: ConfigEntry,
         reg_name: str,
         reg_id: str,
         active: bool,
@@ -99,14 +101,14 @@ class HeatPumpBinarySensor(BinarySensorEntity):
         self._heatpump = heatpump
 
         # Entity metadata
-        self._attr_unique_id = f"{heatpump._id}_{reg_name}"
+        self._attr_unique_id = f"{heatpump.id}_{reg_name}"
         self._attr_name = friendly_name
         self._attr_icon = "mdi:gauge"
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, heatpump._id)},
-            name=CONF_NAME,
+            identifiers={(DOMAIN, heatpump.id)},
+            name=config_entry.data.get(CONF_NAME, "Remko Wärmepumpe"),
             manufacturer="Remko",
-            model=CONF_VER,
+            model=config_entry.data.get(CONF_VER, "WKF"),
             entry_type=DeviceEntryType.SERVICE,
         )
 
@@ -145,7 +147,7 @@ class HeatPumpBinarySensor(BinarySensorEntity):
             """Handle MQTT message received event."""
             self.hass.async_create_task(self._async_update_from_event(event))
 
-        mqtt_event = f"{self._heatpump._domain}_{self._heatpump._id}_msg_rec_event"
+        mqtt_event = f"{self._heatpump.domain}_{self._heatpump.id}_msg_rec_event"
         listener = self.hass.bus.async_listen(mqtt_event, _handle_mqtt_event)
         self.async_on_remove(listener)
         _LOGGER.debug("MQTT event listener registered for %s", self.entity_id)
@@ -177,4 +179,4 @@ class HeatPumpBinarySensor(BinarySensorEntity):
         if self._attr_is_on != new_state:
             self._attr_is_on = new_state
             self.async_write_ha_state()
-            _LOGGER.debug("State updated:  %s -> %s", self._reg_name, new_state)
+            _LOGGER.debug("State updated: %s -> %s", self._reg_name, new_state)

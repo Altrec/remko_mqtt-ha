@@ -10,13 +10,14 @@ from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, CONF_ID, CONF_NAME, CONF_VER
+from .const import CONF_ID, CONF_NAME, CONF_VER, DOMAIN
+from .heatpump import HeatPump
 from .remko_regs import (
+    FIELD_ACTIVE,
     FIELD_REGID,
     FIELD_REGTYPE,
-    FIELD_ACTIVE,
+    get_remko_regs,
     remko_reg_translation,
-    remko_reg,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -40,15 +41,16 @@ async def async_setup_entry(
     Called by the HA framework after async_setup_platforms has been called
     during initialization of a new integration.
     """
-    heatpump = hass.data[DOMAIN]._heatpumps[config_entry.data[CONF_ID]]
+    heatpump = hass.data[DOMAIN].get_heatpump(config_entry.data[CONF_ID])
     entities: list[ButtonEntity] = []
 
-    for reg_name, reg_data in remko_reg.items():
+    # Register-Map für das spezifische Wärmepumpen-Modell abrufen
+    registers = get_remko_regs(heatpump.model)
+
+    for reg_name, reg_data in registers.items():
         reg_type = reg_data[FIELD_REGTYPE]
         reg_id = reg_data[FIELD_REGID]
-        active = (
-            reg_data[FIELD_ACTIVE] != False
-        )  # Default to True if FIELD_ACTIVE not present
+        active = reg_data.get(FIELD_ACTIVE, True)
 
         # Only create buttons for action type
         if reg_type not in _BUTTON_TYPES:
@@ -58,18 +60,19 @@ async def async_setup_entry(
         friendly_name = None
         if reg_name in remko_reg_translation:
             try:
-                friendly_name = remko_reg_translation[reg_name][heatpump._langid]
+                friendly_name = remko_reg_translation[reg_name][heatpump.langid]
             except IndexError, KeyError:
                 _LOGGER.warning(
                     "Could not get translation for %s at language index %s",
                     reg_name,
-                    heatpump._langid,
+                    heatpump.langid,
                 )
 
         entities.append(
             HeatPumpButton(
                 hass=hass,
                 heatpump=heatpump,
+                config_entry=config_entry,
                 reg_name=reg_name,
                 reg_id=reg_id,
                 reg_type=reg_type,
@@ -90,7 +93,8 @@ class HeatPumpButton(ButtonEntity):
     def __init__(
         self,
         hass: HomeAssistant,
-        heatpump: Any,
+        heatpump: HeatPump,
+        config_entry: ConfigEntry,
         reg_name: str,
         reg_id: str,
         reg_type: str,
@@ -102,14 +106,14 @@ class HeatPumpButton(ButtonEntity):
         self._heatpump = heatpump
 
         # Entity metadata
-        self._attr_unique_id = f"{heatpump._id}_{reg_name}"
+        self._attr_unique_id = f"{heatpump.id}_{reg_name}"
         self._attr_name = friendly_name
         self._attr_icon = _ICON_MAPPING.get(reg_type, _DEFAULT_ICON)
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, heatpump._id)},
-            name=CONF_NAME,
+            identifiers={(DOMAIN, heatpump.id)},
+            name=config_entry.data.get(CONF_NAME, "Remko Wärmepumpe"),
             manufacturer="Remko",
-            model=CONF_VER,
+            model=config_entry.data.get(CONF_VER, "WKF"),
             entry_type=DeviceEntryType.SERVICE,
         )
 
@@ -134,5 +138,5 @@ class HeatPumpButton(ButtonEntity):
 
     async def async_press(self) -> None:
         """Handle button press by sending action command via MQTT."""
-        _LOGGER.debug("Button pressed:   %s", self._reg_name)
+        _LOGGER.debug("Button pressed: %s", self._reg_name)
         await self._heatpump.send_mqtt_reg(self._reg_name, 0)

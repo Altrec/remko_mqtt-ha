@@ -1,5 +1,6 @@
-import logging
+"""Module for Remko MQTT timeprogram conversion."""
 
+import logging
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -11,7 +12,7 @@ SLOTS_PER_HOUR = 4
 
 # Remko-internal order of weekdays
 DAYS_REMKO = ["Sa", "Fr", "Di", "Mi", "Do", "Mo", "So"]
-WEEKDAYS_REMKO = ["sat", "fri", "tue", "wed", "thu", "mon", "sun"]
+REMKO_WEEKDAYS = ["sat", "fri", "tue", "wed", "thu", "mon", "sun"]
 
 
 # Weekday order for simplified time program
@@ -31,20 +32,21 @@ WEEKDAY_TO_REMKO_INDEX = {
 
 
 class RemkoTimeProgramConverter:
+    """Converter for Remko timeprograms between hex strings and dict representations."""
+
     @staticmethod
     def hex_to_timeprogram(hex_string: str) -> dict:
-        try:
-            if not hex_string or len(hex_string) != 168:
-                _LOGGER.error(
-                    f"Invalid hex length: {len(hex_string) if hex_string else 0}"
-                )
-                return RemkoTimeProgramConverter._create_empty_timeprogram()
+        """Convert a 168-character hex string into a timeprogram dict."""
+        if not hex_string or len(hex_string) != 168:
+            _LOGGER.error(
+                "Invalid hex length: %s", len(hex_string) if hex_string else 0
+            )
+            return RemkoTimeProgramConverter._create_empty_timeprogram()
 
+        try:
             timeprogram = RemkoTimeProgramConverter._create_empty_timeprogram()
 
-            WEEKDAYS_REMKO = ["sat", "fri", "tue", "wed", "thu", "mon", "sun"]
-
-            for day_idx, weekday in enumerate(WEEKDAYS_REMKO):
+            for day_idx, weekday in enumerate(REMKO_WEEKDAYS):
                 day_hex = hex_string[day_idx * 24 : (day_idx + 1) * 24]
 
                 # Reverse the hex string for this day (read from right to left)
@@ -59,24 +61,24 @@ class RemkoTimeProgramConverter:
                     bit_string += bits_reversed
 
                 timeslots = RemkoTimeProgramConverter._find_timeslots(bit_string)
-
                 timeprogram[weekday]["timeslots"] = timeslots
 
-            return timeprogram
-
-        except Exception as e:
-            _LOGGER.error(f"Error converting hex to time program: {e}")
+        except (ValueError, KeyError, IndexError) as err:
+            _LOGGER.error("Error converting hex to time program: %s", err)
             return RemkoTimeProgramConverter._create_empty_timeprogram()
+        else:
+            return timeprogram
 
     @staticmethod
     def timeprogram_to_hex(timeprogram: dict) -> str | None:
-        try:
-            if not timeprogram or not isinstance(timeprogram, dict):
-                return None
+        """Convert a timeprogram dict into a 168-character hex string."""
+        if not timeprogram or not isinstance(timeprogram, dict):
+            return None
 
+        try:
             hex_string = ""
 
-            for weekday in WEEKDAYS_REMKO:
+            for weekday in REMKO_WEEKDAYS:
                 bit_string = ["0"] * 96
 
                 timeslots = timeprogram.get(weekday, {}).get("timeslots", [])
@@ -112,19 +114,20 @@ class RemkoTimeProgramConverter:
 
                 hex_string += day_hex
 
-            if len(hex_string) == 168:
-                _LOGGER.debug(f"Time program to Hex: {hex_string}")
-                return hex_string
-            else:
-                _LOGGER.error(f"Invalid hex length: {len(hex_string)}")
-                return None
-
-        except Exception as e:
-            _LOGGER.error(f"Error converting time program to hex: {e}")
+        except (ValueError, KeyError, TypeError, AttributeError) as err:
+            _LOGGER.error("Error converting time program to hex: %s", err)
             return None
+
+        if len(hex_string) == 168:
+            _LOGGER.debug("Time program to Hex: %s", hex_string)
+            return hex_string
+
+        _LOGGER.error("Invalid hex length: %s", len(hex_string))
+        return None
 
     @staticmethod
     def _find_timeslots(bit_string: str) -> list[dict]:
+        """Parse bit string into a list of timeslot dictionaries."""
         timeslots = []
         in_timeslot = False
         start_slot = 0
@@ -153,6 +156,7 @@ class RemkoTimeProgramConverter:
 
     @staticmethod
     def _slot_to_time(slot: int) -> str:
+        """Convert a 15-minute slot index (0..95) into 'HH:MM' format."""
         hours = slot // 4
         minutes = (slot % 4) * 15
 
@@ -163,6 +167,7 @@ class RemkoTimeProgramConverter:
 
     @staticmethod
     def _time_to_slot(time_str: str) -> int:
+        """Convert 'HH:MM' string to 15-minute slot index."""
         try:
             parts = time_str.split(":")
             hours = int(parts[0])
@@ -170,11 +175,12 @@ class RemkoTimeProgramConverter:
 
             slot = hours * 4 + minutes // 15
             return min(slot, SLOTS_PER_DAY - 1)
-        except:
+        except ValueError, IndexError, AttributeError:
             return 0
 
     @staticmethod
     def _create_empty_timeprogram() -> dict:
+        """Create an empty timeprogram structure with all days initialized."""
         return {
             "mon": {"timeslots": []},
             "tue": {"timeslots": []},

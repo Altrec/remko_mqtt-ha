@@ -1,25 +1,33 @@
-"""Config flow"""
+"""Config flow for Remko MQTT integration."""
 
 import logging
+from typing import Any
 
 import voluptuous as vol
 
 from homeassistant import config_entries, exceptions
 from homeassistant.components.mqtt import valid_subscribe_topic
 from homeassistant.core import callback
-from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers import selector
+from homeassistant.helpers import config_validation as cv, selector
 
 from .const import (
-    DOMAIN,
-    CONF_ID,
-    CONF_MQTT_NODE,
-    CONF_LANGUAGE,
-    CONF_FREQ,
     AVAILABLE_LANGUAGES,
+    CONF_FREQ,
+    CONF_ID,
+    CONF_LANGUAGE,
+    CONF_MODEL,
+    CONF_MQTT_NODE,
+    DOMAIN,
 )
+from .remko_regs import WKF, WSP
 
 _LOGGER = logging.getLogger(__name__)
+
+# Dropdown-Optionen für die Modellauswahl
+MODEL_OPTIONS = [
+    selector.SelectOptionDict(value=WKF, label="WKF Serie"),
+    selector.SelectOptionDict(value=WSP, label="WSP Serie"),
+]
 
 
 class InvalidPostalCode(exceptions.HomeAssistantError):
@@ -35,14 +43,21 @@ class DomainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    async def validate_input(self, data):
-        """Validate input in step user"""
+    async def validate_input(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Validate input in step user."""
         return data
 
-    async def async_step_user(self, user_input=None):
+    async def async_step_user(self, user_input: dict[str, Any] | None = None):
+        """Handle initial step."""
         data_schema = vol.Schema(
             {
                 vol.Required(CONF_ID, default="remko"): cv.string,
+                vol.Required(CONF_MODEL, default=WKF): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=MODEL_OPTIONS,
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                    ),
+                ),
                 vol.Required(CONF_MQTT_NODE, default="V04P28"): cv.string,
                 vol.Required(CONF_LANGUAGE, default="en"): selector.SelectSelector(
                     selector.SelectSelectorConfig(
@@ -69,6 +84,14 @@ class DomainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         error_schema = vol.Schema(
             {
                 vol.Required(CONF_ID, default=user_input.get(CONF_ID, "")): cv.string,
+                vol.Required(
+                    CONF_MODEL, default=user_input.get(CONF_MODEL, WKF)
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=MODEL_OPTIONS,
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                    ),
+                ),
                 vol.Required(
                     CONF_MQTT_NODE, default=user_input.get(CONF_MQTT_NODE, "")
                 ): cv.string,
@@ -113,7 +136,7 @@ class DomainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         # Validate language
         try:
-            lang = AVAILABLE_LANGUAGES.index(user_input.get(CONF_LANGUAGE, "en"))
+            AVAILABLE_LANGUAGES.index(user_input.get(CONF_LANGUAGE, "en"))
         except ValueError:
             _LOGGER.debug(
                 "Invalid language provided: %s", user_input.get(CONF_LANGUAGE)
@@ -130,14 +153,15 @@ class DomainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 title=id_name,
                 data={
                     CONF_ID: id_name,
+                    CONF_MODEL: user_input.get(CONF_MODEL, WKF),
                     CONF_MQTT_NODE: prefix,
                     CONF_LANGUAGE: user_input.get(CONF_LANGUAGE),
                     CONF_FREQ: user_input.get(CONF_FREQ, 60),
                 },
                 options={},
             )
-        except Exception as exc:  # defensive: surface creation failure
-            _LOGGER.exception("Failed to create config entry: %s", exc)
+        except Exception:  # defensive: surface creation failure
+            _LOGGER.exception("Failed to create config entry")
             return self.async_show_form(
                 step_id="user",
                 data_schema=error_schema,
@@ -146,36 +170,44 @@ class DomainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry):
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> config_entries.OptionsFlow:
         """Return the options flow handler for the provided config entry."""
-        return OptionsFlow(config_entry)
+        return OptionsFlow()
 
 
 class OptionsFlow(config_entries.OptionsFlow):
     """Remko MQTT config flow options handler."""
 
-    def __init__(self, config_entry):
-        """Initialize Remko MQTT options flow."""
-        self._config_entry = config_entry
-
-    async def async_step_init(self, user_input=None):
+    async def async_step_init(self, user_input: dict[str, Any] | None = None):
         """Manage the options."""
         return await self.async_step_user(user_input)
 
-    async def validate_input(self, data):
-        """Validate input in step user"""
+    async def validate_input(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Validate input in step user."""
         return data
 
-    async def async_step_user(self, user_input=None):
+    async def async_step_user(self, user_input: dict[str, Any] | None = None):
+        """Handle options step."""
         data_schema = vol.Schema(
             {
                 vol.Required(
+                    CONF_MODEL,
+                    default=self.config_entry.data.get(CONF_MODEL, WKF),
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=MODEL_OPTIONS,
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                    ),
+                ),
+                vol.Required(
                     CONF_MQTT_NODE,
-                    default=self._config_entry.data.get(CONF_MQTT_NODE),
+                    default=self.config_entry.data.get(CONF_MQTT_NODE),
                 ): cv.string,
                 vol.Required(
                     CONF_LANGUAGE,
-                    default=self._config_entry.data.get(CONF_LANGUAGE),
+                    default=self.config_entry.data.get(CONF_LANGUAGE),
                 ): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=["en", "de"],
@@ -183,7 +215,7 @@ class OptionsFlow(config_entries.OptionsFlow):
                     ),
                 ),
                 vol.Required(
-                    CONF_FREQ, default=self._config_entry.data.get(CONF_FREQ)
+                    CONF_FREQ, default=self.config_entry.data.get(CONF_FREQ)
                 ): cv.positive_int,
             }
         )
@@ -193,6 +225,14 @@ class OptionsFlow(config_entries.OptionsFlow):
 
         error_schema = vol.Schema(
             {
+                vol.Required(
+                    CONF_MODEL, default=user_input[CONF_MODEL]
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=MODEL_OPTIONS,
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                    ),
+                ),
                 vol.Required(
                     CONF_MQTT_NODE, default=user_input[CONF_MQTT_NODE]
                 ): cv.string,
@@ -209,8 +249,7 @@ class OptionsFlow(config_entries.OptionsFlow):
         )
 
         try:
-            entryTitle = self._config_entry.title
-            id_name = self._config_entry.data[CONF_ID]
+            id_name = self.config_entry.data[CONF_ID]
         except (KeyError, AttributeError) as ex:
             _LOGGER.error("Failed to get config entry data: %s", ex)
             return self.async_show_form(
@@ -235,7 +274,7 @@ class OptionsFlow(config_entries.OptionsFlow):
             )
 
         try:
-            lang = AVAILABLE_LANGUAGES.index(user_input[CONF_LANGUAGE])
+            AVAILABLE_LANGUAGES.index(user_input[CONF_LANGUAGE])
         except (ValueError, IndexError) as ex:
             _LOGGER.debug(
                 "Invalid language provided: %s, error: %s",
@@ -251,13 +290,14 @@ class OptionsFlow(config_entries.OptionsFlow):
         try:
             data = {
                 CONF_ID: id_name,
+                CONF_MODEL: user_input[CONF_MODEL],
                 CONF_MQTT_NODE: prefix,
                 CONF_LANGUAGE: user_input[CONF_LANGUAGE],
                 CONF_FREQ: user_input[CONF_FREQ],
             }
 
             self.hass.config_entries.async_update_entry(
-                self._config_entry,
+                self.config_entry,
                 data=data,
                 options={},
             )
@@ -265,8 +305,8 @@ class OptionsFlow(config_entries.OptionsFlow):
             # This is the options entry, keep it empty
             return self.async_create_entry(title="", data={})
 
-        except Exception as ex:
-            _LOGGER.exception("Failed to update config entry: %s", ex)
+        except Exception:
+            _LOGGER.exception("Failed to update config entry: %s")
             return self.async_show_form(
                 step_id="user",
                 data_schema=error_schema,

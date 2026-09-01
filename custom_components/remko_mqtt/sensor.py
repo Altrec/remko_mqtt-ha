@@ -3,7 +3,11 @@
 import logging
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity, SensorStateClass
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
@@ -11,14 +15,15 @@ from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, CONF_ID, CONF_NAME, CONF_VER
+from .const import CONF_ID, CONF_NAME, CONF_VER, DOMAIN
+from .heatpump import HeatPump
 from .remko_regs import (
+    FIELD_ACTIVE,
     FIELD_REGID,
     FIELD_REGTYPE,
     FIELD_UNIT,
-    FIELD_ACTIVE,
+    get_remko_regs,
     remko_reg_translation,
-    remko_reg,
 )
 from .timeprogram_converter import RemkoTimeProgramConverter
 
@@ -55,6 +60,12 @@ _UNIT_MAPPING = {
 
 _DEFAULT_ICON = "mdi:gauge"
 
+_UNIT_TO_DEVICE_CLASS: dict[str, SensorDeviceClass] = {
+    "°C": SensorDeviceClass.TEMPERATURE,
+    "kWh": SensorDeviceClass.ENERGY,
+    "W": SensorDeviceClass.POWER,
+}
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -67,41 +78,43 @@ async def async_setup_entry(
     Called by the HA framework after async_setup_platforms has been called
     during initialization of a new integration.
     """
-    heatpump = hass.data[DOMAIN]._heatpumps[config_entry.data[CONF_ID]]
+    heatpump = hass.data[DOMAIN].get_heatpump(config_entry.data[CONF_ID])
     entities = []
 
-    for reg_name, reg_data in remko_reg.items():
+    # Register-Map für das spezifische Wärmepumpen-Modell abrufen
+    registers = get_remko_regs(heatpump.model)
+
+    for reg_name, reg_data in registers.items():
         reg_type = reg_data[FIELD_REGTYPE]
         reg_id = reg_data[FIELD_REGID]
-        active = (
-            reg_data[FIELD_ACTIVE] != False
-        )  # Default to True if FIELD_ACTIVE not present
+        active = reg_data.get(FIELD_ACTIVE, True)
 
         # Only create sensors for supported types that are available
-        if reg_type not in _SENSOR_TYPES or reg_id not in heatpump._capabilities:
+        if reg_type not in _SENSOR_TYPES or reg_id not in heatpump.capabilities:
             continue
 
         # Get friendly name from translation (list indexed by language)
         friendly_name = None
         if reg_name in remko_reg_translation:
             try:
-                friendly_name = remko_reg_translation[reg_name][heatpump._langid]
+                friendly_name = remko_reg_translation[reg_name][heatpump.langid]
             except IndexError, KeyError:
                 _LOGGER.warning(
                     "Could not get translation for %s at language index %s",
                     reg_name,
-                    heatpump._langid,
+                    heatpump.langid,
                 )
 
         entities.append(
             HeatPumpSensor(
                 hass=hass,
                 heatpump=heatpump,
+                config_entry=config_entry,
                 reg_name=reg_name,
                 reg_id=reg_id,
                 active=active,
                 reg_type=reg_type,
-                reg_unit=reg_data[FIELD_UNIT],
+                reg_unit=reg_data.get(FIELD_UNIT),
                 friendly_name=friendly_name,
             )
         )
@@ -118,7 +131,8 @@ class HeatPumpSensor(SensorEntity):
     def __init__(
         self,
         hass: HomeAssistant,
-        heatpump: Any,
+        heatpump: HeatPump,
+        config_entry: ConfigEntry,
         reg_name: str,
         reg_id: str,
         active: bool,
@@ -131,13 +145,13 @@ class HeatPumpSensor(SensorEntity):
         self._heatpump = heatpump
 
         # Entity metadata
-        self._attr_unique_id = f"{heatpump._id}_{reg_name}"
+        self._attr_unique_id = f"{heatpump.id}_{reg_name}"
         self._attr_name = friendly_name
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, heatpump._id)},
-            name=CONF_NAME,
+            identifiers={(DOMAIN, heatpump.id)},
+            name=config_entry.data.get(CONF_NAME, "Remko Wärmepumpe"),
             manufacturer="Remko",
-            model=CONF_VER,
+            model=config_entry.data.get(CONF_VER, "WKF"),
             entry_type=DeviceEntryType.SERVICE,
         )
 
@@ -165,16 +179,9 @@ class HeatPumpSensor(SensorEntity):
         return self._state
 
     @property
-    def device_class(self) -> str | None:
+    def device_class(self) -> SensorDeviceClass | None:
         """Return the device class of this sensor."""
-        unit = self._attr_native_unit_of_measurement
-        if unit == "°C":
-            return "temperature"
-        elif unit == "kWh":
-            return "energy"
-        elif unit == "W":
-            return "power"
-        return None
+        return _UNIT_TO_DEVICE_CLASS.get(self._attr_native_unit_of_measurement)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -182,7 +189,7 @@ class HeatPumpSensor(SensorEntity):
         if self._reg_type != "timeprogram":
             return {}
 
-        timeprogram = self._heatpump._hpstate.get(self._reg_id)
+        timeprogram = self._heatpump.get_value(self._reg_id)
         if isinstance(timeprogram, dict) and "mon" in timeprogram:
             return {"timeprogram": timeprogram}
         return {}
@@ -213,7 +220,7 @@ class HeatPumpSensor(SensorEntity):
             """Handle MQTT message received event."""
             self.hass.async_create_task(self._async_update_from_event(event))
 
-        mqtt_event = f"{self._heatpump._domain}_{self._heatpump._id}_msg_rec_event"
+        mqtt_event = f"{self._heatpump.domain}_{self._heatpump.id}_msg_rec_event"
         mqtt_listener = self.hass.bus.async_listen(mqtt_event, _handle_mqtt_event)
         self.async_on_remove(mqtt_listener)
         _LOGGER.debug("MQTT event listener registered for %s", self.entity_id)
@@ -257,7 +264,7 @@ class HeatPumpSensor(SensorEntity):
         if self._state != new_state:
             self._state = new_state
             self.async_write_ha_state()
-            _LOGGER.debug("State updated:  %s -> %s", self._reg_name, new_state)
+            _LOGGER.debug("State updated: %s -> %s", self._reg_name, new_state)
 
     async def _process_timeprogram_event(self, event) -> None:
         """Handle timeprogram update event from service call."""
@@ -287,17 +294,12 @@ class HeatPumpSensor(SensorEntity):
         # Convert to device format
         try:
             timeprogram_hex = RemkoTimeProgramConverter.timeprogram_to_hex(timeprogram)
-        except Exception as err:
-            _LOGGER.exception(
-                "Failed converting timeprogram for %s: %s", self.entity_id, err
-            )
+        except Exception:
+            _LOGGER.exception("Failed converting timeprogram for %s", self.entity_id)
             return
 
         # Send to heat pump
         await self._heatpump.send_mqtt_reg(self._reg_name, timeprogram_hex)
-
-        # Update local cache
-        self._heatpump._hpstate[self._reg_id] = timeprogram
 
         # Notify Home Assistant
         self.async_write_ha_state()

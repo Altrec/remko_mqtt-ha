@@ -6,11 +6,12 @@ DOMAIN = "remko_mqtt"
 # == Remko Const
 CONF_ID = "id_name"
 CONF_NAME = "Remko MQTT"
-CONF_VER = "v0.9.2.6"
+CONF_VER = "v0.9.3"
 CONF_MQTT_NODE = "mqtt_node"
 CONF_LANGUAGE = "language"
 CONF_DATA = "data_msg"
 CONF_FREQ = "freq"
+CONF_MODEL = "model"
 AVAILABLE_LANGUAGES = ["en", "de"]
 
 
