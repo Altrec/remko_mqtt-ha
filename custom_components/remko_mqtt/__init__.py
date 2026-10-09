@@ -123,8 +123,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload config entry when options change."""
     if DOMAIN in hass.data:
-        worker: RemkoWorker = hass.data[DOMAIN]
-        await worker.update_heatpump_entry(entry)
+        await hass.config_entries.async_reload(entry.entry_id)
 
 
 class RemkoWorker:

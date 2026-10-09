@@ -147,7 +147,7 @@ class HeatPump:
         # Process data from heat pump
         if message.topic == self._data_topic:
             self._last_time = time.time()
-            json_dict = json.loads(message.payload).get("values", {})
+            json_dict = json.loads(message.payload.strip()).get("values", {})
 
             for register_id, value in json_dict.items():
                 if register_id in self._reg_name:
