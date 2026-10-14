@@ -58,7 +58,7 @@ async def async_setup_entry(
         active = reg_data.get(FIELD_ACTIVE, True)
 
         # Only create number entities for sensor_temp_inp type that are available
-        if reg_type not in _NUMBER_TYPES or reg_id not in heatpump.capabilities:
+        if reg_type not in _NUMBER_TYPES:
             continue
 
         # Get friendly name from translation
@@ -162,6 +162,11 @@ class HeatPumpNumber(NumberEntity):
             reg_min,
             reg_max,
         )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Add reg_id to entity."""
+        return {"remko_code": self._reg_id}
 
     async def async_added_to_hass(self) -> None:
         """Register MQTT event listener when entity is added to Home Assistant."""

@@ -38,6 +38,7 @@ _SENSOR_TYPES = {
     "sensor_freq",
     "sensor_input",
     "sensor_mode",
+    "sensor_num",
     "sensor_temp",
     "timeprogram",
 }
@@ -51,6 +52,7 @@ _ICON_MAPPING = {
     "sensor_temp": "mdi:temperature-celsius",
     "sensor_en": "mdi:lightning-bolt",
     "sensor_counter": "mdi:counter",
+    "sensor_num": "mdi:numeric",
     "timeprogram": "mdi:calendar-clock",
 }
 
@@ -90,7 +92,7 @@ async def async_setup_entry(
         active = reg_data.get(FIELD_ACTIVE, True)
 
         # Only create sensors for supported types that are available
-        if reg_type not in _SENSOR_TYPES or reg_id not in heatpump.capabilities:
+        if reg_type not in _SENSOR_TYPES:
             continue
 
         # Get friendly name from translation (list indexed by language)
@@ -185,14 +187,17 @@ class HeatPumpSensor(SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Return timeprogram attributes for this sensor's register."""
-        if self._reg_type != "timeprogram":
-            return {}
+        """Return entity attributes including reg_id and optional timeprogram."""
+        attributes: dict[str, Any] = {
+            "remko_code": self._reg_id,
+        }
 
-        timeprogram = self._heatpump.get_value(self._reg_id)
-        if isinstance(timeprogram, dict) and "mon" in timeprogram:
-            return {"timeprogram": timeprogram}
-        return {}
+        if self._reg_type == "timeprogram":
+            timeprogram = self._heatpump.get_value(self._reg_id)
+            if isinstance(timeprogram, dict) and "mon" in timeprogram:
+                attributes["timeprogram"] = timeprogram
+
+        return attributes
 
     def _configure_sensor_type(self, reg_type: str, reg_unit: str | None) -> None:
         """Configure sensor attributes based on register type."""

@@ -57,7 +57,7 @@ async def async_setup_entry(
         active = reg_data.get(FIELD_ACTIVE, True)
 
         # Only create select entities for select_input type that are available
-        if reg_type not in _SELECT_TYPES or reg_id not in heatpump.capabilities:
+        if reg_type not in _SELECT_TYPES:
             continue
 
         # Get friendly name from translation
@@ -172,6 +172,11 @@ class HeatPumpSelect(SelectEntity):
     def device_class(self) -> str:
         """Return the device class of this select."""
         return f"{DOMAIN}_HeatPumpSelect"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Add reg_id to entity."""
+        return {"remko_code": self._reg_id}
 
     async def async_added_to_hass(self) -> None:
         """Register MQTT event listener when entity is added to Home Assistant."""

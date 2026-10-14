@@ -46,7 +46,7 @@ async def async_setup_entry(
         reg_id = reg_data[FIELD_REGID]
         active = reg_data.get(FIELD_ACTIVE, True)
 
-        if reg_type not in _SWITCH_TYPES or reg_id not in heatpump.capabilities:
+        if reg_type not in _SWITCH_TYPES:
             continue
 
         friendly_name = None
@@ -122,6 +122,11 @@ class HeatPumpSwitch(SwitchEntity):
             self._attr_unique_id,
             reg_name,
         )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Add reg_id to entity."""
+        return {"remko_code": self._reg_id}
 
     async def async_added_to_hass(self) -> None:
         """Register MQTT event listener when entity is added to Home Assistant."""

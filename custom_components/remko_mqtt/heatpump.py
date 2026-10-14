@@ -11,6 +11,7 @@ from typing import Any
 from homeassistant.components import mqtt
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_time_interval
 
 from .const import (
@@ -70,8 +71,8 @@ class HeatPump:
         self._reg_time: dict[str, float] = {}
         self._build_reverse_lookup()
 
-        # Device capabilities
-        self._capabilities: list[str] = []
+        # Active registires
+        self._active_regs = [5001]
 
         # MQTT subscriptions
         self._unsub_data: Callable[[], None] | None = None
@@ -81,7 +82,6 @@ class HeatPump:
         # Timing and counters
         self._last_time = time.time()
         self._keep_alive_delay = time.time() - _KEEP_ALIVE_INTERVAL
-        self._mqtt_counter = self._freq
 
     # --- Public Properties ---
 
@@ -106,11 +106,6 @@ class HeatPump:
         return self._langid
 
     @property
-    def capabilities(self) -> list[str]:
-        """Return the list of available register capabilities."""
-        return self._capabilities
-
-    @property
     def hpstate(self) -> dict[str, Any]:
         """Return current heat pump state."""
         return self._hpstate
@@ -122,6 +117,28 @@ class HeatPump:
         for name, data in self._remko_reg.items():
             self._reg_name[data[0]] = name
             self._hpstate[data[0]] = "unknown"
+
+    async def build_query_list(self, hass: HomeAssistant) -> None:
+        """Check entity registry for entity state (enabled/disabled) and build query list."""
+        ent_reg = er.async_get(hass)
+        current_active_regs = []
+
+        entries = er.async_entries_for_config_entry(ent_reg, self._entry.entry_id)
+
+        for entry in entries:
+            if not entry.disabled:
+                state_obj = hass.states.get(entry.entity_id)
+                if state_obj:
+                    remko_code = state_obj.attributes.get("remko_code")
+                    if remko_code is not None:
+                        current_active_regs.append(int(remko_code))
+
+        current_active_regs.sort()
+
+        if current_active_regs != self._active_regs:
+            _LOGGER.info("Build new Remko query list")
+            self._active_regs = current_active_regs
+            await self.mqtt_keep_alive()
 
     async def message_received(self, message) -> None:
         """Handle new MQTT messages."""
@@ -142,6 +159,7 @@ class HeatPump:
                     "Message from other client, delaying query_list for 30 seconds"
                 )
                 self._keep_alive_delay = time.time()
+                await self.mqtt_keep_alive()
                 return
 
         # Process data from heat pump
@@ -154,7 +172,6 @@ class HeatPump:
                     self._update_hpstate(register_id, value)
 
             self._hass.bus.fire(f"{self._domain}_{self._id}_msg_rec_event", {})
-            await self.mqtt_keep_alive()
 
     def _update_hpstate(self, reg_id: str, value: str) -> None:
         """Update heat pump state with converted register value."""
@@ -172,7 +189,7 @@ class HeatPump:
             ):
                 self._reg_time[reg_id] = time.time()
                 self._hpstate[reg_id] = int(value, 16) * 100
-        elif reg_type in ("sensor_en", "sensor_counter", "sensor_freq"):
+        elif reg_type in ("sensor_en", "sensor_counter", "sensor_freq", "sensor_num"):
             if (
                 reg_id not in self._reg_time
                 or time.time() - self._reg_time[reg_id] > self._freq
@@ -205,11 +222,6 @@ class HeatPump:
         mode = mode_map.get(reg_id, f"mode{int_value}")
         return remko_reg_translation[mode][self._langid]
 
-    async def check_capabilities(self) -> bool:
-        """Check capabilities/possible register IDs from heat pump."""
-        self._capabilities = list(self._reg_name.keys())
-        return True
-
     async def setup_mqtt(self) -> None:
         """Initialize MQTT subscriptions and watchdog."""
         self._unsub_data = await mqtt.async_subscribe(
@@ -226,7 +238,6 @@ class HeatPump:
         self._hass.async_create_task(self.watchdog())
 
         await asyncio.sleep(_MQTT_SLEEP_DURATION)
-        self._mqtt_counter = self._freq
         self._hass.bus.fire(f"{self._domain}_{self._id}_msg_rec_event", {})
 
     async def remove_mqtt(self) -> None:
@@ -309,7 +320,6 @@ class HeatPump:
         )
 
         await asyncio.sleep(_MQTT_SLEEP_DURATION)
-        self._mqtt_counter = self._freq
         self._hass.bus.fire(f"{self._domain}_{self._id}_msg_rec_event", {})
 
     def _build_mqtt_payload(
@@ -338,13 +348,12 @@ class HeatPump:
 
         self._keep_alive_delay = time.time()
         query_list = (
-            [int(cap) for cap in self._capabilities] if self._capabilities else []
+            [int(act) for act in self._active_regs] if self._active_regs else []
         )
 
         payload = json.dumps(
             {
                 "FORCE_RESPONSE": True,
-                "values": {"5074": "0255", "5106": "0000", "5109": "0000"},
                 "query_list": query_list,
             }
         )
@@ -358,7 +367,7 @@ class HeatPump:
         )
 
     async def watchdog(self) -> None:
-        """Monitor MQTT connection and trigger keep-alive when needed."""
+        """Monitor MQTT connection, trigger keep-alive when needed and check for entity registry changes."""
 
         @callback
         def _check(now) -> None:
@@ -366,6 +375,8 @@ class HeatPump:
             if time.time() - self._last_time >= _WATCHDOG_TIMEOUT:
                 _LOGGER.debug("No MQTT message for 5 minutes, triggering keep-alive")
                 self._hass.async_create_task(self.mqtt_keep_alive())
+
+            self._hass.async_create_task(self.build_query_list(self._hass))
 
         self._watchdog_unsub = async_track_time_interval(
             self._hass, _check, _WATCHDOG_CHECK_INTERVAL

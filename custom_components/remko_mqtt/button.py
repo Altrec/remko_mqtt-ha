@@ -136,6 +136,11 @@ class HeatPumpButton(ButtonEntity):
         """Return the device class of this button."""
         return f"{DOMAIN}_HeatPumpButton"
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Add reg_id to entity."""
+        return {"remko_code": self._reg_id}
+
     async def async_press(self) -> None:
         """Handle button press by sending action command via MQTT."""
         _LOGGER.debug("Button pressed: %s", self._reg_name)
