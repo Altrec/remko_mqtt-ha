@@ -71,7 +71,7 @@ class HeatPump:
         self._reg_time: dict[str, float] = {}
         self._build_reverse_lookup()
 
-        # Active registires
+        # Active registries
         self._active_regs = [5001]
 
         # MQTT subscriptions
@@ -159,7 +159,6 @@ class HeatPump:
                     "Message from other client, delaying query_list for 30 seconds"
                 )
                 self._keep_alive_delay = time.time()
-                await self.mqtt_keep_alive()
                 return
 
         # Process data from heat pump
@@ -170,6 +169,14 @@ class HeatPump:
             for register_id, value in json_dict.items():
                 if register_id in self._reg_name:
                     self._update_hpstate(register_id, value)
+
+            # Check if all registries have been send. Else resend request.
+            active_regs_str = {str(reg) for reg in self._active_regs}
+            received_regs_str = set(json_dict.keys())
+
+            if not active_regs_str.issubset(received_regs_str):
+                _LOGGER.debug("Missing registries in MQTT message, sending keep-alive")
+                await self.mqtt_keep_alive()
 
             self._hass.bus.fire(f"{self._domain}_{self._id}_msg_rec_event", {})
 
