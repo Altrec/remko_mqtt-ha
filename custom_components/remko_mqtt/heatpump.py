@@ -196,13 +196,22 @@ class HeatPump:
             ):
                 self._reg_time[reg_id] = time.time()
                 self._hpstate[reg_id] = int(value, 16) * 100
-        elif reg_type in ("sensor_en", "sensor_counter", "sensor_freq", "sensor_num"):
+        elif reg_type in (
+            "sensor_en",
+            "sensor_counter",
+            "sensor_freq",
+            "sensor_num",
+            "sensor_percent_inp",
+        ):
             if (
                 reg_id not in self._reg_time
                 or time.time() - self._reg_time[reg_id] > self._freq
             ):
                 self._reg_time[reg_id] = time.time()
-                self._hpstate[reg_id] = int(value, 16)
+                factor = self._remko_reg[self._reg_name[reg_id]][5]
+                if factor == "" or factor is None:
+                    factor = 1
+                self._hpstate[reg_id] = int(value, 16) * factor
         elif reg_type in ("sensor_temp", "sensor_temp_inp"):
             if (
                 reg_id not in self._reg_time
@@ -216,6 +225,8 @@ class HeatPump:
             self._hpstate[reg_id] = remko_reg_translation[mode][self._langid]
         elif reg_type == "select_input":
             self._hpstate[reg_id] = self._get_select_mode(self._reg_name[reg_id], value)
+        elif reg_type == "binary_sensor":
+            self._hpstate[reg_id] = f"{int(value, 16):02X}"
 
     def _get_select_mode(self, reg_id: str, value: str) -> str:
         """Get select mode display name from register value."""
@@ -337,6 +348,9 @@ class HeatPump:
             return json.dumps({"values": {reg_id: value}})
         if reg_type == "sensor_temp_inp":
             hex_str = f"{round(value * 10) & 0xFFFF:04X}"
+            return json.dumps({"values": {reg_id: hex_str}})
+        if reg_type == "sensor_percent_inp":
+            hex_str = f"{round(value) & 0xFFFF:04X}"
             return json.dumps({"values": {reg_id: hex_str}})
 
         if reg_type == "select_input":

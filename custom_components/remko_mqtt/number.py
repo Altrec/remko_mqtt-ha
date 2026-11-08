@@ -27,7 +27,7 @@ from .remko_regs import (
 _LOGGER = logging.getLogger(__name__)
 
 # Constants
-_NUMBER_TYPES = {"sensor_temp_inp"}
+_NUMBER_TYPES = {"sensor_percent_inp", "sensor_temp_inp"}
 _TEMPERATURE_TYPES = {"sensor_temp", "sensor_temp_inp"}
 _TEMPERATURE_UNITS = {"C", "°C"}
 _DEFAULT_STEP = 0.5
@@ -152,7 +152,10 @@ class HeatPumpNumber(NumberEntity):
 
         self._attr_native_min_value = reg_min
         self._attr_native_max_value = reg_max
-        self._attr_native_step = _DEFAULT_STEP
+        if reg_type == "sensor_percent_inp":
+            self._attr_native_step = 1.0
+        else:
+            self._attr_native_step = _DEFAULT_STEP
         self._attr_native_value: float | None = None
 
         _LOGGER.debug(
